@@ -1,0 +1,10 @@
+node_modules/
+dist/
+artifacts/
+coverage/
+.vitest/
+*.pem
+*.crx
+.env*
+*.log
+.DS_Store
