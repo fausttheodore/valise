@@ -1,5 +1,6 @@
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 import { defaultProfile, defaultSettings } from "../src/config";
+import { setLocale } from "../src/i18n";
 import { runTurn } from "../src/runner";
 import { RequestScope } from "../src/request";
 import {
@@ -41,6 +42,7 @@ const result = (text = "回答", calls: any[] = []) => ({
   sources: [],
 });
 beforeEach(() => {
+  setLocale("zh-CN");
   vi.clearAllMocks();
   mock.save.mockResolvedValue(undefined);
   mock.snapshot.mockResolvedValue(undefined);
@@ -160,6 +162,14 @@ describe("turn lifecycle, budget and search", () => {
     await runTurn(o);
     expect(mock.search).not.toHaveBeenCalled();
     expect(o.events.at(-1).detail).toContain("不支持的工具");
+    setLocale("en");
+    const en = setup();
+    en.conversation.searchMode = "auto";
+    mock.generate.mockResolvedValueOnce(
+      result("", [{ id: "x", name: "fetch_any_url", arguments: "{}" }]),
+    );
+    await runTurn(en);
+    expect(en.events.at(-1).detail).toContain("Unsupported tool");
   });
   it("reports remaining chunks when the configured call limit is reached", async () => {
     const o = setup();

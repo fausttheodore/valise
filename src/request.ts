@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import type { Profile } from "./types";
 
 export class RequestTimeout extends Error {
@@ -17,30 +18,30 @@ export class RequestScope {
   constructor(readonly timeouts: Profile["timeouts"]) {
     this.totalDue = Date.now() + timeouts.total * 1000;
     this.totalTimer = setTimeout(
-      () => this.abort(new RequestTimeout("已达到总时长上限。")),
+      () => this.abort(new RequestTimeout(t("request.total"))),
       timeouts.total * 1000,
     );
   }
   check() {
     if (!this.signal.aborted) {
       if (Date.now() >= this.totalDue)
-        this.abort(new RequestTimeout("已达到总时长上限。"));
+        this.abort(new RequestTimeout(t("request.total")));
       else if (this.phaseDue && Date.now() >= this.phaseDue)
         this.abort(new RequestTimeout(this.phaseMessage));
     }
     this.signal.throwIfAborted();
   }
-  abort(reason: unknown = new DOMException("已停止生成", "AbortError")) {
+  abort(reason: unknown = new DOMException(t("request.stopped"), "AbortError")) {
     if (!this.signal.aborted) this.controller.abort(reason);
     this.dispose();
   }
   connecting() {
     this.check();
-    this.arm(this.timeouts.first, "首响应等待超时。");
+    this.arm(this.timeouts.first, t("request.first"));
   }
   touch() {
     this.check();
-    this.arm(this.timeouts.idle, "流式响应长时间没有新数据。");
+    this.arm(this.timeouts.idle, t("request.idle"));
   }
   pausePhase() {
     clearTimeout(this.phaseTimer);

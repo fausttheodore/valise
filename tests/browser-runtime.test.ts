@@ -6,7 +6,7 @@ afterEach(() => {
   vi.resetModules();
 });
 
-function setup(settings = defaultSettings()) {
+function setup(settings = defaultSettings(), uiLanguage = "zh-CN") {
   let listener!: (msg: any, sender: any, respond: (value: any) => void) => boolean;
   const event = { addListener: vi.fn() };
   const session: Record<string, unknown> = {};
@@ -29,6 +29,7 @@ function setup(settings = defaultSettings()) {
       onMessage: { addListener: (fn: typeof listener) => (listener = fn) },
       onInstalled: event,
     },
+    i18n: { getUILanguage: () => uiLanguage },
     webNavigation: { getFrame },
     contextMenus: { onClicked: event },
     commands: { onCommand: event },
@@ -57,6 +58,16 @@ it("hides the selection toolbar on blocked sites and their subdomains only", asy
   const open = await call({ type: "CONTENT_PREFS" }, page("https://notexample.com/a"));
   expect(open.data.enabled).toBe(true);
   expect(open.data.actions[0]).toEqual({ id: "explain", name: "解释", icon: "help" });
+  expect(open.data.locale).toBe("zh-CN");
+});
+
+it("gives the content script the resolved interface language", async () => {
+  const { call } = setup(defaultSettings(), "en-US");
+  const prefs = await call({ type: "CONTENT_PREFS" }, page("https://a.com/x"));
+  expect(prefs.data.locale).toBe("en");
+  expect(prefs.data.actions[0].name).toBe("Explain");
+  const refused = await call({ type: "READ_PAGE" }, page("https://evil.example/"));
+  expect(refused.error).toContain("only available to extension pages");
 });
 
 it("refuses extension-only operations from page content scripts", async () => {

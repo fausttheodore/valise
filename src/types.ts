@@ -73,6 +73,8 @@ export interface Settings {
     timeout: number;
     maxChars: number;
   };
+  /** "auto" follows the browser UI language. */
+  uiLanguage: "auto" | "en" | "zh-CN";
   theme: "system" | "light" | "dark";
   accent: string;
   fontSize: number;

@@ -1,5 +1,6 @@
 import { faviconUrl, hostOf } from "./browser";
 import { append, compactNumber, h } from "./dom";
+import { t, type MessageKey } from "./i18n";
 import { icon, type IconName } from "./icons";
 import { attachmentChip } from "./render";
 import { iconButton, spinner } from "./ui";
@@ -27,11 +28,11 @@ export interface ContextState {
   url?: string;
   tokens?: number;
 }
-const CONTEXT_LABEL: Record<ContextMode, [string, IconName]> = {
-  none: ["网页", "page"],
-  page: ["正文", "page"],
-  selection: ["选区", "cursor"],
-  "selection-page": ["选区+正文", "layers"],
+const CONTEXT_LABEL: Record<ContextMode, [MessageKey, IconName]> = {
+  none: ["composer.ctx.none", "page"],
+  page: ["composer.ctx.page", "page"],
+  selection: ["composer.ctx.selection", "cursor"],
+  "selection-page": ["composer.ctx.selectionPage", "layers"],
 };
 const SVG = "http://www.w3.org/2000/svg";
 function ring(ratio: number) {
@@ -58,10 +59,10 @@ function ring(ratio: number) {
   }
   return svg;
 }
-const SEARCH_LABEL: Record<SearchMode, string> = {
-  off: "搜索",
-  auto: "按需搜索",
-  required: "先搜索",
+const SEARCH_LABEL: Record<SearchMode, MessageKey> = {
+  off: "composer.search.off",
+  auto: "composer.search.auto",
+  required: "composer.search.required",
 };
 
 export function createComposer(o: ComposerOptions) {
@@ -70,13 +71,13 @@ export function createComposer(o: ComposerOptions) {
   const input = h("textarea", {
     class: "composer-input",
     rows: 1,
-    placeholder: o.floating ? "继续追问…" : "问点什么，输入 @ 引用其他标签页…",
-    "aria-label": "输入问题",
+    placeholder: t(o.floating ? "composer.followUp" : "composer.placeholder"),
+    "aria-label": t("composer.inputLabel"),
   });
   const queryInput = h("input", {
     class: "query-input",
-    placeholder: "搜索关键词（留空则用问题本身）",
-    "aria-label": "搜索关键词",
+    placeholder: t("composer.queryPlaceholder"),
+    "aria-label": t("composer.queryLabel"),
   });
   const queryRow = h("label", { class: "composer-query" }, icon("search", 14), queryInput);
   queryRow.hidden = true;
@@ -88,7 +89,11 @@ export function createComposer(o: ComposerOptions) {
   mentionRow.hidden = true;
   const quoteRow = h("div", { class: "composer-quotes" });
   quoteRow.hidden = true;
-  const picker = h("div", { class: "mention-pop", role: "listbox", "aria-label": "引用标签页" });
+  const picker = h("div", {
+    class: "mention-pop",
+    role: "listbox",
+    "aria-label": t("composer.mentionTitle"),
+  });
   picker.hidden = true;
   const chip = (onclick: (anchor: HTMLElement) => void) => {
     const b = h("button", { type: "button", class: "chip" });
@@ -103,7 +108,7 @@ export function createComposer(o: ComposerOptions) {
   meter.onclick = () => o.onUsageMenu(meter);
   meter.hidden = true;
   const attachButton = o.onAttachMenu
-    ? iconButton("plus", "添加图片、文件或截图", (event) =>
+    ? iconButton("plus", t("composer.attach"), (event) =>
         o.onAttachMenu!(event.currentTarget as HTMLElement),
       )
     : null;
@@ -144,8 +149,8 @@ export function createComposer(o: ComposerOptions) {
   const refreshSend = () => {
     sendButton.replaceChildren(icon(busy ? "stop" : "arrowUp", busy ? 16 : 18));
     sendButton.classList.toggle("is-stop", busy);
-    sendButton.title = busy ? "停止 (Esc)" : "发送 (Enter)";
-    sendButton.setAttribute("aria-label", busy ? "停止生成" : "发送");
+    sendButton.title = t(busy ? "composer.stopEsc" : "composer.sendEnter");
+    sendButton.setAttribute("aria-label", t(busy ? "composer.stop" : "composer.send"));
     sendButton.disabled =
       !busy && !input.value.trim() && !tray.childElementCount && !quoteRow.childElementCount;
   };
@@ -178,9 +183,9 @@ export function createComposer(o: ComposerOptions) {
   const drawPicker = () => {
     const m = mention!;
     picker.replaceChildren(
-      h("div", { class: "menu-heading" }, "引用标签页"),
+      h("div", { class: "menu-heading" }, t("composer.mentionTitle")),
       ...(m.items.length
-        ? m.items.map((t, i) =>
+        ? m.items.map((tab, i) =>
             h(
               "button",
               {
@@ -190,19 +195,19 @@ export function createComposer(o: ComposerOptions) {
                 // Keep focus (and the caret) in the textarea.
                 onpointerdown: (event: PointerEvent) => {
                   event.preventDefault();
-                  pick(t);
+                  pick(tab);
                 },
               },
-              h("img", { class: "favicon", src: faviconUrl(t.url), alt: "" }),
+              h("img", { class: "favicon", src: faviconUrl(tab.url), alt: "" }),
               h(
                 "span",
                 { class: "mention-text" },
-                h("span", { class: "mention-title" }, t.title || hostOf(t.url)),
-                h("span", { class: "mention-hint" }, t.hint || hostOf(t.url)),
+                h("span", { class: "mention-title" }, tab.title || hostOf(tab.url)),
+                h("span", { class: "mention-hint" }, tab.hint || hostOf(tab.url)),
               ),
             ),
           )
-        : [h("div", { class: "mention-empty" }, "没有匹配的标签页")]),
+        : [h("div", { class: "mention-empty" }, t("composer.noTabs"))]),
     );
     picker.hidden = false;
     picker.querySelector(".active")?.scrollIntoView({ block: "nearest" });
@@ -210,11 +215,11 @@ export function createComposer(o: ComposerOptions) {
   const updatePicker = async () => {
     if (!o.listTabs || !trigger()) return closePicker();
     tabs ??= await o.listTabs();
-    const t = trigger();
-    if (!t || !tabs) return closePicker();
-    const query = t.query.toLowerCase();
+    const typed = trigger();
+    if (!typed || !tabs) return closePicker();
+    const query = typed.query.toLowerCase();
     mention = {
-      start: t.caret - t.query.length - 1,
+      start: typed.caret - typed.query.length - 1,
       items: tabs
         .filter((x) => (x.title + " " + x.url).toLowerCase().includes(query))
         .slice(0, 30),
@@ -304,11 +309,14 @@ export function createComposer(o: ComposerOptions) {
       refreshSend();
     },
     setContext(state: ContextState) {
-      const [label, name] = CONTEXT_LABEL[state.mode];
+      const [key, name] = CONTEXT_LABEL[state.mode];
+      const label = t(key);
       contextChip.replaceChildren(icon(name, 15), h("span", null, label));
       contextChip.classList.toggle("on", state.mode !== "none");
       contextChip.title =
-        state.mode === "none" ? "不读取网页（点击切换）" : "网页上下文：" + label;
+        state.mode === "none"
+          ? t("composer.ctx.offTitle")
+          : t("composer.ctx.title", { label });
       // In the float the selection is already shown as the first message.
       sourceRow.hidden = o.floating || state.mode === "none" || !state.url;
       if (sourceRow.hidden) return;
@@ -317,7 +325,7 @@ export function createComposer(o: ComposerOptions) {
         {
           type: "button",
           class: "source-main",
-          title: "预览将发送给模型的网页内容",
+          title: t("composer.previewTitle"),
           onclick: o.onPreview,
         },
         h("img", { class: "favicon", src: faviconUrl(state.url || ""), alt: "" }),
@@ -328,13 +336,15 @@ export function createComposer(o: ComposerOptions) {
       );
       sourceRow.replaceChildren(
         main,
-        iconButton("refresh", "重新读取网页", o.onRefresh, "icon-btn-sm"),
+        iconButton("refresh", t("composer.reread"), o.onRefresh, "icon-btn-sm"),
       );
     },
     setSearch(mode: SearchMode) {
-      searchChip.replaceChildren(icon("globe", 15), h("span", null, SEARCH_LABEL[mode]));
+      const label = t(SEARCH_LABEL[mode]);
+      searchChip.replaceChildren(icon("globe", 15), h("span", null, label));
       searchChip.classList.toggle("on", mode !== "off");
-      searchChip.title = mode === "off" ? "联网搜索已关闭" : "联网搜索：" + SEARCH_LABEL[mode];
+      searchChip.title =
+        mode === "off" ? t("composer.search.offTitle") : t("composer.search.title", { label });
       queryRow.hidden = mode !== "required";
     },
     /** Context ring: share of the model's context window the conversation occupies. */
@@ -365,21 +375,21 @@ export function createComposer(o: ComposerOptions) {
     },
     setMentions(items: TabRef[], onRemove: (tabId: number) => void) {
       mentionRow.replaceChildren(
-        ...items.map((t) => {
-          const title = t.title || hostOf(t.url);
+        ...items.map((tab) => {
+          const title = tab.title || hostOf(tab.url);
           return h(
             "span",
-            { class: "mention-chip", title: t.url },
-            h("img", { class: "favicon", src: faviconUrl(t.url), alt: "" }),
+            { class: "mention-chip", title: tab.url },
+            h("img", { class: "favicon", src: faviconUrl(tab.url), alt: "" }),
             h("span", { class: "mention-chip-title" }, title),
             h(
               "button",
               {
                 type: "button",
                 class: "mention-remove",
-                title: "移除",
-                "aria-label": "移除引用 " + title,
-                onclick: () => onRemove(t.tabId),
+                title: t("common.remove"),
+                "aria-label": t("composer.removeMention", { title }),
+                onclick: () => onRemove(tab.tabId),
               },
               icon("x", 11),
             ),
@@ -401,8 +411,8 @@ export function createComposer(o: ComposerOptions) {
               {
                 type: "button",
                 class: "mention-remove",
-                title: "移除引用",
-                "aria-label": "移除引用",
+                title: t("composer.removeQuote"),
+                "aria-label": t("composer.removeQuote"),
                 onclick: () => onRemove(i),
               },
               icon("x", 11),

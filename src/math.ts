@@ -1,5 +1,6 @@
 import katex from "katex";
 import "katex/contrib/mhchem";
+import { t } from "./i18n";
 
 /**
  * Commands from LaTeX packages KaTeX lacks (physics, siunitx, upgreek, unicode-math)
@@ -143,7 +144,7 @@ export function renderTex(tex: string, display: boolean) {
     });
   } catch (error) {
     const reason = error instanceof Error ? error.message.replace(/^KaTeX parse error: /, "") : "";
-    return `<code class="math-error" title="${escape("无法渲染的 LaTeX：" + reason)}">${escape(tex)}</code>`;
+    return `<code class="math-error" title="${escape(t("math.error", { reason }))}">${escape(tex)}</code>`;
   }
 }
 

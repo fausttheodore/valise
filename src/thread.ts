@@ -1,4 +1,5 @@
 import { h } from "./dom";
+import { t } from "./i18n";
 import { icon } from "./icons";
 import { messageView, type MessageView, type ViewHooks } from "./render";
 import { messageText, type Conversation, type Message } from "./types";
@@ -6,9 +7,11 @@ import { messageText, type Conversation, type Message } from "./types";
 const PAGE = 60;
 // Quoted passages lead the text as "> …" lines; the question after them is the better label.
 export const questionPreview = (m: Message) =>
-  (m.display
-    ? m.display.action + (m.display.quote ? "：" + m.display.quote : "")
-    : messageText(m).replace(/^(?:>.*(?:\n|$))+\s*(?=\S)/, "")
+  (m.display?.quote
+    ? t("common.labelValue", { label: m.display.action, value: m.display.quote })
+    : m.display
+      ? m.display.action
+      : messageText(m).replace(/^(?:>.*(?:\n|$))+\s*(?=\S)/, "")
   )
     .replace(/\s+/g, " ")
     .trim()
@@ -29,7 +32,7 @@ export function createThread(opts: {
       onclick: () => loadOlder(),
     },
     icon("arrowUp", 14),
-    "显示更早的消息",
+    t("thread.older"),
   );
   const inner = h("div", { class: "thread-inner" }, older, emptyBox, list);
   const scroller = h("main", { class: "thread" }, inner);
@@ -38,14 +41,14 @@ export function createThread(opts: {
     {
       type: "button",
       class: "jump-latest",
-      title: "回到最新",
-      "aria-label": "回到最新消息",
+      title: t("thread.latest"),
+      "aria-label": t("thread.latestLabel"),
       onclick: () => toBottom(true),
     },
     icon("arrowDown", 16),
   );
   jump.hidden = true;
-  const rail = h("nav", { class: "rail", "aria-label": "提问导航" });
+  const rail = h("nav", { class: "rail", "aria-label": t("thread.nav") });
   rail.hidden = true;
   const element = h(
     "div",
@@ -164,7 +167,7 @@ export function createThread(opts: {
     if (key === railKey) return;
     railKey = key;
     rail.replaceChildren(
-      h("div", { class: "rail-title" }, "提问导航"),
+      h("div", { class: "rail-title" }, t("thread.nav")),
       ...users.map((m, n) =>
         h(
           "button",

@@ -1,21 +1,22 @@
+import type { MessageKey } from "./i18n";
 import type { Settings } from "./types";
 
-export const FONT_PRESETS: { id: string; name: string; stack: string }[] = [
+export const FONT_PRESETS: { id: string; name: MessageKey; stack: string }[] = [
   {
     id: "system",
-    name: "系统默认",
+    name: "font.system",
     stack:
       '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif',
   },
   {
     id: "serif",
-    name: "衬线 · 宋体",
+    name: "font.serif",
     stack:
       '"Iowan Old Style", "Charter", Georgia, "Songti SC", "STSong", "Noto Serif CJK SC", serif',
   },
   {
     id: "rounded",
-    name: "圆体",
+    name: "font.rounded",
     stack:
       'ui-rounded, "SF Pro Rounded", "PingFang SC", "Yuanti SC", "Microsoft YaHei", sans-serif',
   },

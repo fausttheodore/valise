@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import { uid, type PageSnapshot, type SelectionSnapshot } from "./types";
 
 /** Background errors keep a machine-readable code so the UI can offer a precise fix. */
@@ -14,7 +15,7 @@ export async function send<T = any>(data: unknown): Promise<T> {
   const result = await chrome.runtime.sendMessage(data);
   if (!result?.ok)
     throw new AppError(
-      result?.error || "扩展后台连接已中断，请重新打开侧栏。",
+      result?.error || t("browser.disconnected"),
       result?.code,
       result?.data,
     );

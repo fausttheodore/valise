@@ -1,4 +1,5 @@
 import { clamp, h, type Child } from "./dom";
+import { t } from "./i18n";
 import { icon, type IconName } from "./icons";
 
 export function iconButton(
@@ -77,9 +78,9 @@ export async function copyText(text: string, feedback?: HTMLElement) {
       feedback.classList.add("copied");
       setTimeout(() => feedback.classList.remove("copied"), 1200);
     }
-    toast("已复制", "success");
+    toast(t("common.copied"), "success");
   } catch {
-    toast("复制失败：浏览器拒绝了剪贴板访问", "error");
+    toast(t("ui.copyFailed"), "error");
   }
 }
 
@@ -101,7 +102,7 @@ export function showDialog(
         "header",
         { class: "dialog-head" },
         h("h2", null, title),
-        iconButton("x", "关闭", close),
+        iconButton("x", t("common.close"), close),
       ),
       h("div", { class: "dialog-body" }, body),
       opts.footer?.length
@@ -140,8 +141,8 @@ export function askText(
       h(
         "div",
         { class: "row-end" },
-        button("取消", () => dialog.close(), "btn-ghost"),
-        h("button", { type: "submit", class: "btn btn-primary" }, "保存"),
+        button(t("common.cancel"), () => dialog.close(), "btn-ghost"),
+        h("button", { type: "submit", class: "btn btn-primary" }, t("common.save")),
       ),
     );
     const dialog = showDialog(title, form, { className: "dialog-small" });
@@ -159,7 +160,7 @@ export function askText(
 export function confirmAction(
   title: string,
   description: string,
-  confirmLabel = "删除",
+  confirmLabel = t("common.delete"),
 ): Promise<boolean> {
   return new Promise((resolve) => {
     let accepted = false;
@@ -172,7 +173,7 @@ export function confirmAction(
         h(
           "div",
           { class: "row-end" },
-          button("取消", () => dialog.close(), "btn-ghost"),
+          button(t("common.cancel"), () => dialog.close(), "btn-ghost"),
           button(
             confirmLabel,
             () => {

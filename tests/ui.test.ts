@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, expect, it } from "vitest";
+import { setLocale } from "../src/i18n";
 import { askText, confirmAction } from "../src/ui";
 
 beforeEach(() => {
+  setLocale("zh-CN");
   // jsdom does not implement native dialog methods; preserve browser close semantics.
   Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
     configurable: true,
@@ -41,4 +43,12 @@ it("keeps delete cancellation separate from explicit confirmation", async () => 
     .click();
   expect(await confirmed).toBe(true);
   expect(document.querySelector("dialog")).toBeNull();
+});
+it("labels dialog buttons in the interface language", async () => {
+  setLocale("en");
+  const confirmed = confirmAction("Delete conversation", "This cannot be undone.");
+  const labels = [...document.querySelectorAll("button")].map((b) => b.textContent);
+  expect(labels).toContain("Cancel");
+  [...document.querySelectorAll("button")].find((b) => b.textContent === "Delete")!.click();
+  expect(await confirmed).toBe(true);
 });

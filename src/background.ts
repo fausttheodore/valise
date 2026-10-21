@@ -1,15 +1,20 @@
 import {
+  applyLocale,
   FLOAT_WIDTH_MAX,
   loadSettings,
   normalizeSettings,
   saveSettings,
 } from "./config";
+import { getLocale, t } from "./i18n";
 import { uid, type FloatSession, type Settings } from "./types";
 
+// Loading settings once also sets the interface language for messages thrown before any handler reads them.
 const ready = Promise.all([
   chrome.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" }),
   chrome.storage.session.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" }),
-]).catch(() => {});
+])
+  .catch(() => {})
+  .then(loadSettings);
 // The float iframe may load through a dynamic web-accessible URL, so match the scheme, not the ID.
 const trusted = (sender: chrome.runtime.MessageSender) =>
   sender.id === chrome.runtime.id && !!sender.url?.startsWith("chrome-extension://");
@@ -30,6 +35,7 @@ const setupKey = (s: Settings) =>
   JSON.stringify([
     s.selectionEnabled,
     s.blockedSites,
+    s.uiLanguage,
     s.actions.map((a) => [a.id, a.name]),
   ]);
 async function setup() {
@@ -51,7 +57,7 @@ async function setup() {
           runAt: "document_idle",
         },
       ])
-      .catch((error) => console.warn("Valise: 注册划词脚本失败", error));
+      .catch((error) => console.warn("Valise: could not register the selection script", error));
   }
   await chrome.contextMenus.removeAll();
   const menu = (options: chrome.contextMenus.CreateProperties) =>
@@ -64,7 +70,7 @@ async function setup() {
       title: a.name,
       contexts: ["selection"],
     });
-  menu({ id: "panel", title: "在侧栏中打开 Valise", contexts: ["page"] });
+  menu({ id: "panel", title: t("bg.openPanel"), contexts: ["page"] });
 }
 let chain: Promise<void> = Promise.resolve();
 const sync = () => (chain = chain.catch(() => {}).then(setup));
@@ -78,6 +84,7 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.storage.onChanged.addListener((changes, area) => {
   const change = changes.settings;
   if (area !== "local" || !change) return;
+  applyLocale(change.newValue);
   if (
     setupKey(normalizeSettings(change.oldValue)) !==
     setupKey(normalizeSettings(change.newValue))
@@ -103,7 +110,7 @@ async function selectionAction(
       { frameId },
     );
   } catch (error) {
-    console.warn("Valise: 无法在此页面执行划词动作", error);
+    console.warn("Valise: could not run the selection action on this page", error);
   }
 }
 chrome.contextMenus.onClicked.addListener((info, tab) => {
@@ -139,9 +146,8 @@ async function readPage(msg: {
               : { active: true, lastFocusedWindow: true },
           )
         )[0];
-  if (tab?.id === undefined) throw new Coded("没有可读取的标签页。", "RESTRICTED");
-  if (tab.discarded)
-    throw new Coded("这个标签页已被浏览器休眠，先切换过去让它加载，再引用。", "STALE");
+  if (tab?.id === undefined) throw new Coded(t("bg.noTab"), "RESTRICTED");
+  if (tab.discarded) throw new Coded(t("bg.discarded"), "STALE");
   const tabId = tab.id;
   const frameId = msg.frameId || 0;
   const frame = await chrome.webNavigation
@@ -149,14 +155,10 @@ async function readPage(msg: {
     .catch(() => null);
   const url = frame?.url || tab.url || "";
   if (/^https?:\/\/(?:chrome\.google\.com\/webstore|chromewebstore\.google\.com)/.test(url) || !/^https?:\/\//.test(url))
-    throw new Coded(
-      "这是浏览器内部页面或受保护的页面，无法读取正文。可以改为普通聊天。",
-      "RESTRICTED",
-    );
-  if (/\.pdf(?:$|[?#])/i.test(url))
-    throw new Coded("这是一个 PDF，无法作为网页读取。", "PDF", url);
+    throw new Coded(t("bg.restricted"), "RESTRICTED");
+  if (/\.pdf(?:$|[?#])/i.test(url)) throw new Coded(t("bg.pdf"), "PDF", url);
   if (msg.documentId && frame && msg.documentId !== frame.documentId)
-    throw new Coded("页面已导航，原来的选区已失效。", "STALE");
+    throw new Coded(t("bg.navigated"), "STALE");
   try {
     await chrome.scripting.executeScript({
       target: { tabId, frameIds: [frameId] },
@@ -165,25 +167,21 @@ async function readPage(msg: {
   } catch (error) {
     const text = error instanceof Error ? error.message : String(error);
     if (/cannot be scripted|extensions gallery/i.test(text))
-      throw new Coded("此页面受浏览器保护，扩展无法读取。", "RESTRICTED");
-    throw new Coded(
-      "Valise 没有读取此网站的权限（扩展的网站访问可能被设为“点击时”）。",
-      "NO_ACCESS",
-      new URL(url).origin + "/*",
-    );
+      throw new Coded(t("bg.protected"), "RESTRICTED");
+    throw new Coded(t("bg.noAccess"), "NO_ACCESS", new URL(url).origin + "/*");
   }
   const data = await chrome.tabs.sendMessage(
     tabId,
     { type: "READ_DOM" },
     frame?.documentId ? { documentId: frame.documentId } : { frameId },
   );
-  if (!data) throw new Coded("页面没有响应，请刷新网页后再试。", "STALE");
-  if (data.pdf) throw new Coded("这是一个 PDF，无法作为网页读取。", "PDF", url);
+  if (!data) throw new Coded(t("bg.noResponse"), "STALE");
+  if (data.pdf) throw new Coded(t("bg.pdf"), "PDF", url);
   const after = await chrome.webNavigation
     .getFrame({ tabId, frameId })
     .catch(() => null);
   if (frame && (after?.documentId !== frame.documentId || after?.url !== data.url))
-    throw new Coded("读取期间页面发生了跳转，请重试。", "STALE");
+    throw new Coded(t("bg.changed"), "STALE");
   return { ...data, tabId, frameId, documentId: frame?.documentId || "" };
 }
 
@@ -206,17 +204,18 @@ const handlers: Record<
         !s.blockedSites.some((b) => host === b || host.endsWith("." + b)),
       actions: s.actions.map(({ id, name, icon }) => ({ id, name, icon })),
       width: s.floatWidth,
+      locale: getLocale(),
     };
   },
   async CREATE_FLOAT(msg, sender) {
     if (sender.tab?.id === undefined || trusted(sender))
-      throw new Error("无效的选区来源。");
+      throw new Error(t("bg.badSource"));
     if (!msg.selection?.text || msg.selection.url !== sender.url)
-      throw new Error("选区已失效，请重新选择。");
+      throw new Error(t("bg.staleSelection"));
     const s = await loadSettings();
     const action =
       s.actions.find((a) => a.id === msg.action) || s.actions[0];
-    if (!action) throw new Error("还没有划词动作，请在设置中添加。");
+    if (!action) throw new Error(t("bg.noActions"));
     const id = uid();
     const floats = await getFloats();
     for (const [key, value] of Object.entries(floats))
@@ -240,7 +239,7 @@ const handlers: Record<
   /** Remembers the width the user dragged the float to; nothing else is writable from a page. */
   async FLOAT_WIDTH(msg, sender) {
     if (sender.tab?.id === undefined || !Number.isFinite(msg.width))
-      throw new Error("无效的浮窗尺寸。");
+      throw new Error(t("bg.badWidth"));
     const s = await loadSettings();
     const width = Math.round(Math.max(320, Math.min(FLOAT_WIDTH_MAX, msg.width)) / 10) * 10;
     if (width !== s.floatWidth) await saveSettings({ ...s, floatWidth: width });
@@ -251,7 +250,7 @@ const handlers: Record<
     const floats = await getFloats();
     const entry = floats[msg.id];
     if (!entry || sender.tab?.id !== entry.tabId || entry.claimed)
-      throw new Error("这个划词浮窗已失效，请重新划词。");
+      throw new Error(t("bg.floatExpired"));
     const parent = await chrome.webNavigation.getFrame({
       tabId: entry.tabId,
       frameId: entry.frameId,
@@ -261,7 +260,7 @@ const handlers: Record<
       (entry.documentId && parent.documentId !== entry.documentId) ||
       parent.url !== entry.url
     )
-      throw new Error("页面已跳转，原来的选区已失效。");
+      throw new Error(t("bg.navigated"));
     entry.claimed = true;
     await chrome.storage.session.set({ floats });
     return entry;
@@ -299,12 +298,12 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
   if (sender.id !== chrome.runtime.id || typeof msg?.type !== "string") return false;
   const handler = handlers[msg.type];
   if (!handler) return false;
-  if (!PAGE_ALLOWED.has(msg.type) && !trusted(sender)) {
-    respond({ ok: false, error: "此操作仅供扩展页面调用。" });
-    return false;
-  }
   ready
-    .then(() => handler(msg, sender))
+    .then(() => {
+      if (!PAGE_ALLOWED.has(msg.type) && !trusted(sender))
+        throw new Error(t("bg.extensionOnly"));
+      return handler(msg, sender);
+    })
     .then(
       (data) => respond({ ok: true, data }),
       (error) =>

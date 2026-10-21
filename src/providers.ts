@@ -1,5 +1,6 @@
 import { createParser } from "eventsource-parser";
 import { capabilities, redact, validateProfile } from "./config";
+import { t } from "./i18n";
 import {
   messageAttachments,
   messageText,
@@ -71,10 +72,9 @@ export function buildRequest(input: ModelInput): {
       .filter((x) => x.type === "tool-result")
       .map((x) => "\n搜索资料：\n" + x.text)
       .join("");
-  if (input.searchTool && !c.tools)
-    throw new Error("此配置尚未启用函数调用；可使用明确搜索。");
+  if (input.searchTool && !c.tools) throw new Error(t("providers.noTools"));
   if (input.nativeSearch && !c.nativeSearch)
-    throw new Error("此模型尚未配置原生搜索能力。");
+    throw new Error(t("providers.noNativeSearch"));
   if (p.provider === "openai") {
     const body: Record<string, unknown> = {
       ...p.extra,
@@ -209,7 +209,7 @@ export async function* sse(
   response: Response,
   scope: RequestScope,
 ): AsyncGenerator<{ event?: string; data: string }> {
-  if (!response.body) throw new Error("服务端未返回可读响应体。");
+  if (!response.body) throw new Error(t("providers.noBody"));
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   const queue: { event?: string; data: string }[] = [];
@@ -217,7 +217,7 @@ export async function* sse(
     maxBufferSize: 8 * 1024 * 1024,
     onEvent: (event) => queue.push(event),
     onError: (error) => {
-      throw new Error("SSE 数据格式错误：" + error.message);
+      throw new Error(t("providers.badSse", { error: error.message }));
     },
   });
   const abort = () => {
@@ -270,10 +270,8 @@ export async function generate(input: ModelInput): Promise<ModelResult> {
     );
     throw new Error(
       redact(
-        `API ${response.status}：${detail}` +
-          (hasMedia && response.status === 400
-            ? "\n（若该模型不支持图片或 PDF 输入，请在模型配置的能力中关闭对应选项。）"
-            : ""),
+        t("providers.http", { status: response.status, detail }) +
+          (hasMedia && response.status === 400 ? "\n" + t("providers.mediaHint") : ""),
         [p.apiKey],
       ),
     );
@@ -303,12 +301,12 @@ export async function generate(input: ModelInput): Promise<ModelResult> {
     try {
       data = JSON.parse(event.data);
     } catch {
-      throw new Error("服务端返回了无法解析的流式 JSON。");
+      throw new Error(t("providers.badJson"));
     }
     if (data.error || event.event === "error")
       throw new Error(
         redact(
-          String(data.error?.message || data.message || "流中收到错误帧"),
+          String(data.error?.message || data.message || t("providers.errorFrame")),
           [p.apiKey],
         ),
       );
@@ -367,7 +365,9 @@ export async function generate(input: ModelInput): Promise<ModelResult> {
       }
     } else {
       if (data.promptFeedback?.blockReason)
-        throw new Error("提供商拒绝了请求：" + data.promptFeedback.blockReason);
+        throw new Error(
+          t("providers.blocked", { reason: data.promptFeedback.blockReason }),
+        );
       const u = data.usageMetadata;
       if (u?.promptTokenCount !== undefined)
         result.usage = {
@@ -413,7 +413,7 @@ export async function generate(input: ModelInput): Promise<ModelResult> {
             "MALFORMED_FUNCTION_CALL",
           ].includes(candidate.finishReason)
         )
-          throw new Error("提供商终止生成：" + candidate.finishReason);
+          throw new Error(t("providers.stopped", { reason: candidate.finishReason }));
       }
     }
     result.text += text;
@@ -421,7 +421,7 @@ export async function generate(input: ModelInput): Promise<ModelResult> {
     if (text || thought) input.onDelta(text, thought);
   }
   scope.check();
-  if (!ended) throw new Error("响应在结束标记前断开；已保留收到的内容。");
+  if (!ended) throw new Error(t("providers.cutOff"));
   if (p.provider === "openai") {
     result.calls = [...toolDeltas.values()];
     result.raw = {
@@ -459,7 +459,7 @@ export async function listModels(
         : {};
   const response = await fetch(url, { headers, signal });
   if (!response.ok)
-    throw new Error(`模型列表 HTTP ${response.status}；可以手填模型名。`);
+    throw new Error(t("providers.listFailed", { status: response.status }));
   const data = await response.json();
   return p.provider === "gemini"
     ? (data.models || []).map((x: any) =>

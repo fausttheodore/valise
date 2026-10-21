@@ -1,3 +1,4 @@
+import { getLocale, t } from "./i18n";
 import { uid, type Attachment } from "./types";
 
 export const MAX_ATTACHMENTS = 8;
@@ -16,12 +17,12 @@ async function base64(blob: Blob) {
 
 /** Re-encodes images as JPEG with a bounded long side to keep requests and history small. */
 async function imageAttachment(blob: Blob, name: string): Promise<Attachment> {
-  if (blob.size > 30 * MB) throw new Error(`图片「${name}」超过 30 MB。`);
+  if (blob.size > 30 * MB) throw new Error(t("attach.imageTooLarge", { name }));
   let bitmap: ImageBitmap;
   try {
     bitmap = await createImageBitmap(blob);
   } catch {
-    throw new Error(`无法解码图片「${name}」。`);
+    throw new Error(t("attach.imageDecode", { name }));
   }
   const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
   const width = Math.max(1, Math.round(bitmap.width * scale));
@@ -44,7 +45,7 @@ async function imageAttachment(blob: Blob, name: string): Promise<Attachment> {
 }
 
 async function pdfAttachment(blob: Blob, name: string): Promise<Attachment> {
-  if (blob.size > 20 * MB) throw new Error(`PDF「${name}」超过 20 MB。`);
+  if (blob.size > 20 * MB) throw new Error(t("attach.pdfTooLarge", { name }));
   return {
     id: uid(),
     kind: "pdf",
@@ -64,7 +65,7 @@ export async function attachmentFromFile(file: File): Promise<Attachment> {
     /json|xml|javascript|yaml|csv|x-tex|markdown|x-sh/.test(file.type) ||
     TEXT_EXT.test(file.name)
   ) {
-    if (file.size > 2 * MB) throw new Error(`文本文件「${file.name}」超过 2 MB。`);
+    if (file.size > 2 * MB) throw new Error(t("attach.textTooLarge", { name: file.name }));
     return {
       id: uid(),
       kind: "text",
@@ -74,7 +75,7 @@ export async function attachmentFromFile(file: File): Promise<Attachment> {
       size: file.size,
     };
   }
-  throw new Error(`暂不支持「${file.name}」这种文件；可上传图片、PDF 或文本/代码文件。`);
+  throw new Error(t("attach.unsupported", { name: file.name }));
 }
 
 export async function captureTab(windowId?: number): Promise<Attachment> {
@@ -84,14 +85,14 @@ export async function captureTab(windowId?: number): Promise<Attachment> {
       ? await chrome.tabs.captureVisibleTab(options)
       : await chrome.tabs.captureVisibleTab(windowId, options);
   const blob = await (await fetch(dataUrl)).blob();
-  const time = new Date().toLocaleTimeString("zh-CN", { hour12: false });
-  return imageAttachment(blob, `截图 ${time}`);
+  const time = new Date().toLocaleTimeString(getLocale(), { hour12: false });
+  return imageAttachment(blob, t("attach.screenshotName", { time }));
 }
 
 /** Fetches the PDF the user is viewing; the extension's host access covers the request. */
 export async function attachmentFromUrl(url: string): Promise<Attachment> {
   const response = await fetch(url, { credentials: "include" });
-  if (!response.ok) throw new Error(`下载 PDF 失败：HTTP ${response.status}`);
+  if (!response.ok) throw new Error(t("attach.pdfDownload", { status: response.status }));
   const blob = await response.blob();
   let name = "document.pdf";
   try {

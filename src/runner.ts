@@ -11,6 +11,7 @@ import {
   trimHistory,
   type Reference,
 } from "./context";
+import { t } from "./i18n";
 import { generate } from "./providers";
 import { RequestScope } from "./request";
 import { search } from "./search";
@@ -110,15 +111,11 @@ export async function runTurn(o: TurnOptions) {
         p.maxOutputTokens >
       p.contextTokens
     )
-      throw new Error(
-        "请求超过已配置的上下文预算；请减少历史/搜索结果或提高已核实的模型上限。",
-      );
+      throw new Error(t("runner.overBudget"));
     if (++calls > o.settings.maxCalls)
-      throw new Error(
-        `已达到 ${o.settings.maxCalls} 次模型调用上限；尚未覆盖的部分见进度。`,
-      );
+      throw new Error(t("runner.callLimit", { max: o.settings.maxCalls }));
     const m = current!;
-    notify("connecting", calls > 1 ? `第 ${calls} 次调用` : undefined);
+    notify("connecting", calls > 1 ? t("runner.callN", { n: calls }) : undefined);
     m.status = "connecting";
     const result = await generate({
       profile: p,
@@ -153,28 +150,31 @@ export async function runTurn(o: TurnOptions) {
       ...result.calls.map((call) => ({ type: "tool-call" as const, call })),
     );
     if (["length", "MAX_TOKENS"].includes(result.finishReason || ""))
-      m.coverage = "已达到输出 token 上限，回答可能未完成。";
+      m.coverage = t("runner.outputLimit");
     changed();
     return result;
   };
   try {
-    notify("preparing", "核对当前页面和上下文");
+    notify("preparing", t("runner.checkingPage"));
     page = await scope.wait(o.getPage());
     scope.check();
     const reference = contextText(page, c.contextMode);
-    const others = (o.tabs || []).filter((t) => t.tabId !== page?.tabId);
-    if (others.length) notify("preparing", `读取 ${others.length} 个引用的标签页`);
+    const others = (o.tabs || []).filter((x) => x.tabId !== page?.tabId);
+    if (others.length) notify("preparing", t("runner.readingTabs", { count: others.length }));
     const tabs = await scope.wait(
       Promise.all(
-        others.map((t) =>
-          o.readTab!(t)
+        others.map((tab) =>
+          o.readTab!(tab)
             .then((snapshot) => {
-              if (snapshot.status !== "loaded") throw new Error("没有提取到正文。");
+              if (snapshot.status !== "loaded") throw new Error(t("runner.noText"));
               return snapshot;
             })
             .catch((error) => {
               throw new Error(
-                `无法读取「${t.title || t.url}」：${error instanceof Error ? error.message : error}`,
+                t("runner.tabFailed", {
+                  title: tab.title || tab.url,
+                  error: error instanceof Error ? error.message : String(error),
+                }),
               );
             }),
         ),
@@ -183,7 +183,7 @@ export async function runTurn(o: TurnOptions) {
     scope.check();
     const sections: Reference[] = [
       ...(reference ? [{ text: reference, page }] : []),
-      ...tabs.map((t) => ({ text: t.content, page: t })),
+      ...tabs.map((tab) => ({ text: tab.content, page: tab })),
     ];
     const user: Message = {
       id: uid(),
@@ -200,7 +200,7 @@ export async function runTurn(o: TurnOptions) {
       source: page ? identity(page) : undefined,
       snapshotId: page?.id,
       refs: tabs.length
-        ? tabs.map((t) => ({ source: identity(t), snapshotId: t.id }))
+        ? tabs.map((tab) => ({ source: identity(tab), snapshotId: tab.id }))
         : undefined,
     };
     for (const snapshot of page ? [page, ...tabs] : tabs)
@@ -208,9 +208,11 @@ export async function runTurn(o: TurnOptions) {
     c.messages.push(user);
     if (c.messages.filter((x) => x.role === "user").length === 1)
       c.title = (
-        o.display
-          ? o.display.action + (o.display.quote ? "：" + o.display.quote : "")
-          : o.question
+        o.display?.quote
+          ? t("common.labelValue", { label: o.display.action, value: o.display.quote })
+          : o.display
+            ? o.display.action
+            : o.question
       )
         .replace(/\s+/g, " ")
         .trim()
@@ -231,18 +233,17 @@ export async function runTurn(o: TurnOptions) {
         Math.min(sections.length ? 3000 : 0, Math.floor(p.contextTokens / 4)),
     );
     const budget = contextBudget(p, system, messages, searchReserve);
-    if (budget < 64)
-      throw new Error(
-        "没有足够上下文空间，请减少历史、输出预留或增加模型上下文预算。",
-      );
+    if (budget < 64) throw new Error(t("runner.noRoom"));
     if (messages.length < c.messages.length)
       notify(
         "preparing",
-        `预算内保留最近 ${messages.filter((x) => x.role === "user").length} 轮；旧消息仍在历史中。`,
+        t("runner.trimmed", {
+          count: messages.filter((x) => x.role === "user").length,
+        }),
       );
     let sources: Source[] = [];
     if (c.searchMode === "required") {
-      notify("searching", "执行独立搜索");
+      notify("searching", t("runner.searching"));
       sources = await scope.wait(
         search(o.searchQuery || o.question, o.settings.search, scope),
       );
@@ -252,14 +253,9 @@ export async function runTurn(o: TurnOptions) {
     // "auto" prefers the model's own search; otherwise the model calls the configured search API.
     const native = c.searchMode === "auto" && caps.nativeSearch;
     if (c.searchMode === "auto" && !native) {
-      if (!caps.tools)
-        throw new Error(
-          "当前模型没有自带联网，也未启用工具调用；请改用「先搜索再回答」，或在模型配置中声明联网能力。",
-        );
+      if (!caps.tools) throw new Error(t("runner.noSearchCapability"));
       if (!searchReady(o.settings.search))
-        throw new Error(
-          "当前模型没有自带联网，按需搜索需要先在设置中配置搜索服务。",
-        );
+        throw new Error(t("runner.noSearchService"));
     }
     const sourceJSON = (found: Source[]) => {
       const copy = structuredClone(found);
@@ -293,27 +289,27 @@ export async function runTurn(o: TurnOptions) {
         m.sources = [...sources, ...result.sources];
         if (!result.calls.length) {
           if (c.searchMode === "auto" && !m.sources.length)
-            m.coverage += native ? "；模型未返回搜索来源" : "；本次模型未执行搜索";
+            m.coverage += t(native ? "runner.noNativeSources" : "runner.noSearchRun");
           changed();
           return result;
         }
         history.push(m);
         for (const tool of result.calls) {
           if (tool.name !== "web_search")
-            throw new Error(`不支持的工具：${tool.name}`);
+            throw new Error(t("runner.unknownTool", { name: tool.name }));
           if (++searchRounds > o.settings.search.rounds)
-            throw new Error("达到搜索轮数上限，已停止补搜。");
+            throw new Error(t("runner.searchLimit"));
           let args: { query: string };
           try {
             args = JSON.parse(tool.arguments);
           } catch {
-            throw new Error("模型搜索参数不是有效 JSON。");
+            throw new Error(t("runner.badSearchArgs"));
           }
           if (
             typeof args.query !== "string" ||
             Object.keys(args).some((k) => k !== "query")
           )
-            throw new Error("搜索工具仅接受 query 字符串。");
+            throw new Error(t("runner.badSearchQuery"));
           notify("searching", args.query);
           const found = await scope.wait(
             search(args.query, o.settings.search, scope),
@@ -351,12 +347,22 @@ export async function runTurn(o: TurnOptions) {
       const chunks = chunkText(whole, budget - 256);
       const outputs: string[] = [];
       let incomplete = 0;
+      const task = t(o.task === "translate" ? "runner.taskTranslate" : "runner.taskSummarize");
+      const total = chunks.length;
+      const allDone = () =>
+        t("runner.allProcessed", { total }) +
+        (incomplete ? t("runner.someIncomplete", { count: incomplete }) : "");
       for (let index = 0; index < chunks.length; index++) {
-        const progress = `全文${o.task === "translate" ? "翻译" : "总结"}：第 ${index + 1}/${chunks.length} 段；此后 ${chunks.length - index - 1} 段尚未处理`;
+        const progress = t("runner.progress", {
+          task,
+          index: index + 1,
+          total,
+          rest: total - index - 1,
+        });
         if (calls >= o.settings.maxCalls) {
           const m = newAssistant();
-          m.coverage = `已处理 ${index}/${chunks.length} 段；剩余 ${chunks.length - index} 段未处理。`;
-          throw new Error("已达到分块调用上限；可提高上限后重新执行。");
+          m.coverage = t("runner.partial", { done: index, total, rest: total - index });
+          throw new Error(t("runner.chunkLimit"));
         }
         const query: Message = {
           ...user,
@@ -374,9 +380,8 @@ export async function runTurn(o: TurnOptions) {
         outputs.push(result.text);
         if (["length", "MAX_TOKENS"].includes(result.finishReason || "")) {
           incomplete++;
-          current!.coverage = progress + "；本段输出达到上限，未完整完成。";
-        } else
-          current!.coverage = `全文${o.task === "translate" ? "翻译" : "总结"}：已处理 ${index + 1}/${chunks.length} 段`;
+          current!.coverage = progress + t("runner.partTruncated");
+        } else current!.coverage = t("runner.processed", { task, done: index + 1, total });
       }
       if (o.task === "summarize" && outputs.length > 1) {
         const combined = outputs
@@ -402,25 +407,21 @@ export async function runTurn(o: TurnOptions) {
               ],
               [{ text: combined, page: single }],
             ),
-            `已处理全部 ${chunks.length} 段${incomplete ? `，其中 ${incomplete} 段输出不完整` : ""}`,
+            allDone(),
           );
           if (["length", "MAX_TOKENS"].includes(result.finishReason || ""))
             incomplete++;
         } else {
           const m = newAssistant();
-          m.parts = [
-            {
-              type: "text",
-              text: "已逐段处理全文。受预算或调用次数限制，未额外生成综合摘要；请阅读上方全部分段结果。",
-            },
-          ];
+          m.parts = [{ type: "text", text: t("runner.noCombined") }];
           m.status = "complete";
-          m.coverage = `已处理全部 ${chunks.length} 段${incomplete ? `，其中 ${incomplete} 段输出不完整` : ""}`;
+          m.coverage = allDone();
         }
       }
       notify(
         "complete",
-        `全文已处理 ${chunks.length}/${chunks.length} 段${incomplete ? `；${incomplete} 个输出达到上限，请查看各段提示` : ""}`,
+        t("runner.done", { total }) +
+          (incomplete ? t("runner.doneIncomplete", { count: incomplete }) : ""),
       );
       return;
     }
@@ -440,15 +441,19 @@ export async function runTurn(o: TurnOptions) {
         share,
       );
       notes.push(
-        sections.length === 1 ? selected.coverage : `「${s.page?.title}」${selected.coverage}`,
+        sections.length === 1
+          ? selected.coverage
+          : t("runner.pageCoverage", { title: s.page?.title || "", coverage: selected.coverage }),
       );
       return { ...s, text: selected.content };
     });
+    const separator = t("common.separator");
     const coverage = !sections.length
-      ? "未使用网页"
+      ? t("runner.noPage")
       : sections.length === 1
-        ? notes[0] || "完整传入当前提取正文"
-        : `引用 ${sections.length} 个网页` + (notes.length ? "；" + notes.join("；") : "，均完整传入");
+        ? notes[0] || t("runner.fullPage")
+        : t("runner.pages", { count: sections.length }) +
+          (notes.length ? separator + notes.join(separator) : t("runner.allFull"));
     await answer(attachContext(messages, fitted), coverage);
     notify("complete");
   } catch (error) {

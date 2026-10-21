@@ -3,6 +3,7 @@ import DOMPurify from "dompurify";
 import "katex/dist/katex.min.css";
 import { faviconUrl, hostOf } from "./browser";
 import { compactNumber, h } from "./dom";
+import { formatNumber, t, type MessageKey } from "./i18n";
 import { icon, isIcon, type IconName } from "./icons";
 import { BLOCK_SLOT, extractMath, renderTex, SLOT, type Formula } from "./math";
 import { copyText, iconButton, showDialog } from "./ui";
@@ -21,7 +22,7 @@ md.linkify.set({ fuzzyLink: false, fuzzyEmail: false });
 type RenderEnv = { copies: string[] };
 const escape = md.utils.escapeHtml;
 md.renderer.rules.image = (tokens, index) =>
-  `<span class="md-image">[图片：${escape(tokens[index].content)}]</span>`;
+  `<span class="md-image">${escape(t("render.image", { alt: tokens[index].content }))}</span>`;
 md.renderer.rules.link_open = (tokens, index, options, env, self) => {
   tokens[index].attrSet("target", "_blank");
   tokens[index].attrSet("rel", "noopener noreferrer");
@@ -32,15 +33,15 @@ md.renderer.rules.fence = (tokens, index, options, env, self) => {
   const token = tokens[index];
   const copy = (env as RenderEnv).copies.push(token.content) - 1;
   const lang = token.info.trim().split(/\s+/)[0] || "text";
-  return `<div class="code-block"><div class="code-head"><span class="code-lang">${escape(lang)}</span><button type="button" class="code-copy" data-copy="${copy}">复制</button></div>${fence(tokens, index, options, env, self)}</div>`;
+  return `<div class="code-block"><div class="code-head"><span class="code-lang">${escape(lang)}</span><button type="button" class="code-copy" data-copy="${copy}">${escape(t("common.copy"))}</button></div>${fence(tokens, index, options, env, self)}</div>`;
 };
 function formulaHtml(f: Formula, env: RenderEnv) {
   const copy = env.copies.push(f.tex) - 1;
   const rendered = renderTex(f.tex, f.display);
   const tex = escape(f.tex);
   if (f.block)
-    return `<div class="formula" data-tex="${tex}">${rendered}<div class="formula-actions"><button type="button" data-copy="${copy}" title="复制 LaTeX 源码">TeX</button><button type="button" data-copy="${copy}" data-delimiters="true" title="复制带 $$ 定界符的源码">$$</button></div></div>`;
-  return `<span class="inline-formula${f.display ? " is-display" : ""}" data-copy="${copy}" data-tex="${tex}" title="点击复制 LaTeX">${rendered}</span>`;
+    return `<div class="formula" data-tex="${tex}">${rendered}<div class="formula-actions"><button type="button" data-copy="${copy}" title="${escape(t("render.copyTex"))}">TeX</button><button type="button" data-copy="${copy}" data-delimiters="true" title="${escape(t("render.copyTexDelimited"))}">$$</button></div></div>`;
+  return `<span class="inline-formula${f.display ? " is-display" : ""}" data-copy="${copy}" data-tex="${tex}" title="${escape(t("render.clickCopyTex"))}">${rendered}</span>`;
 }
 export function renderMarkdown(source: string) {
   const env: RenderEnv = { copies: [] };
@@ -209,7 +210,7 @@ export function attachmentChip(a: Attachment, onRemove?: () => void) {
         h(
           "span",
           { class: "attachment-size" },
-          (a.kind === "pdf" ? "PDF · " : "文本 · ") + formatSize(a.size),
+          (a.kind === "pdf" ? "PDF" : t("render.text")) + " · " + formatSize(a.size),
         ),
       ),
     );
@@ -220,8 +221,8 @@ export function attachmentChip(a: Attachment, onRemove?: () => void) {
         {
           type: "button",
           class: "attachment-remove",
-          title: "移除",
-          "aria-label": "移除附件 " + a.name,
+          title: t("common.remove"),
+          "aria-label": t("render.removeAttachment", { name: a.name }),
           onclick: onRemove,
         },
         icon("x", 12),
@@ -288,7 +289,7 @@ function userView(m: Message, hooks: ViewHooks): MessageView {
         {
           type: "button",
           class: "source-pill",
-          title: "查看当时读取的网页内容\n" + source.url,
+          title: t("render.viewSource") + "\n" + source.url,
           onclick: () => hooks.onSource(source, snapshotId),
         },
         h("img", { class: "favicon", src: faviconUrl(source.url), alt: "" }),
@@ -296,7 +297,7 @@ function userView(m: Message, hooks: ViewHooks): MessageView {
       ),
     );
   if (m.display) {
-    const toggle: HTMLButtonElement = iconButton("code", "查看完整提示词", () => {
+    const toggle: HTMLButtonElement = iconButton("code", t("render.showPrompt"), () => {
       showPrompt = !showPrompt;
       toggle.classList.toggle("active", showPrompt);
       draw();
@@ -304,7 +305,7 @@ function userView(m: Message, hooks: ViewHooks): MessageView {
     foot.append(toggle);
   }
   foot.append(
-    iconButton("copy", "复制", (event) =>
+    iconButton("copy", t("common.copy"), (event) =>
       void copyText(messageText(m), event.currentTarget as HTMLElement),
     ),
   );
@@ -330,23 +331,23 @@ function toolSteps(m: Message) {
       "div",
       { class: "tool-step" },
       icon("search", 14),
-      h("span", null, "搜索"),
+      h("span", null, t("render.search")),
       h("span", { class: "tool-query" }, query),
     );
   });
 }
 
-const SOURCE_KIND: Record<Source["kind"], string> = {
-  snippet: " · 搜索摘要",
-  grounding: " · Google 搜索",
-  citation: " · 模型联网",
+const SOURCE_KIND: Record<Source["kind"], MessageKey> = {
+  snippet: "render.kind.snippet",
+  grounding: "render.kind.grounding",
+  citation: "render.kind.citation",
 };
 export function usageTitle(u: Usage) {
   return [
-    `输入 ${u.input.toLocaleString()} token` +
-      (u.cached ? `（缓存命中 ${u.cached.toLocaleString()}）` : ""),
-    `输出 ${u.output.toLocaleString()} token` +
-      (u.reasoning ? `（思考 ${u.reasoning.toLocaleString()}）` : ""),
+    t("render.usage.input", { count: formatNumber(u.input) }) +
+      (u.cached ? t("render.usage.cached", { count: formatNumber(u.cached) }) : ""),
+    t("render.usage.output", { count: formatNumber(u.output) }) +
+      (u.reasoning ? t("render.usage.reasoning", { count: formatNumber(u.reasoning) }) : ""),
   ].join("\n");
 }
 function sourceList(m: Message) {
@@ -366,7 +367,7 @@ function sourceList(m: Message) {
           h("img", { class: "favicon", src: faviconUrl("https://" + host), alt: "" }),
         ),
       ),
-      h("span", null, `${list.length} 个来源`),
+      h("span", null, t("render.sources", { count: list.length })),
       icon("chevronDown", 14),
     ),
     h(
@@ -390,7 +391,7 @@ function sourceList(m: Message) {
             h(
               "span",
               { class: "source-host" },
-              hostOf(s.url) + SOURCE_KIND[s.kind],
+              hostOf(s.url) + " · " + t(SOURCE_KIND[s.kind]),
             ),
           ),
         ),
@@ -402,7 +403,7 @@ function sourceList(m: Message) {
 function groundingWidget(html: string) {
   const widget = h("iframe", {
     class: "grounding",
-    title: "Google 搜索建议",
+    title: t("render.groundingTitle"),
   });
   widget.sandbox.add("allow-popups", "allow-popups-to-escape-sandbox");
   widget.srcdoc =
@@ -416,7 +417,7 @@ function groundingWidget(html: string) {
 
 function assistantView(m: Message, hooks: ViewHooks): MessageView {
   const md = markdownBody();
-  const thinkingLabel = h("span", null, "思考过程");
+  const thinkingLabel = h("span", null, t("render.thinking"));
   const thinkingBody = h("div", { class: "thinking-body" });
   const summary = h(
     "summary",
@@ -474,7 +475,7 @@ function assistantView(m: Message, hooks: ViewHooks): MessageView {
       lastThought = thoughts;
       thinkingBody.textContent = thoughts;
     }
-    thinkingLabel.textContent = busy && !text ? "正在思考…" : "思考过程";
+    thinkingLabel.textContent = t(busy && !text ? "render.thinkingBusy" : "render.thinking");
     if (!touched) thinking.open = busy && !text && !!thoughts;
 
     const callKey = m.parts
@@ -504,7 +505,7 @@ function assistantView(m: Message, hooks: ViewHooks): MessageView {
       note.replaceChildren();
       if (m.status === "cancelled")
         note.append(
-          h("div", { class: "note-line" }, icon("stop", 13), h("span", null, "已停止生成")),
+          h("div", { class: "note-line" }, icon("stop", 13), h("span", null, t("render.stopped"))),
         );
       else if (failed && m.error)
         note.append(
@@ -518,7 +519,7 @@ function assistantView(m: Message, hooks: ViewHooks): MessageView {
                   "button",
                   { type: "button", class: "note-action", onclick: () => hooks.onRegenerate() },
                   icon("refresh", 13),
-                  "重试",
+                  t("render.retry"),
                 )
               : null,
           ),
@@ -537,12 +538,12 @@ function assistantView(m: Message, hooks: ViewHooks): MessageView {
       foot.replaceChildren();
       if (text)
         foot.append(
-          iconButton("copy", "复制 Markdown", (event) =>
+          iconButton("copy", t("render.copyMarkdown"), (event) =>
             void copyText(messageText(m), event.currentTarget as HTMLElement),
           ),
         );
       if (regenerate)
-        foot.append(iconButton("refresh", "重新生成", () => hooks.onRegenerate()));
+        foot.append(iconButton("refresh", t("render.regenerate"), () => hooks.onRegenerate()));
       if (m.model) foot.append(h("span", { class: "msg-model" }, m.model));
       if (m.usage)
         foot.append(

@@ -1,5 +1,18 @@
 // Kept dependency-free apart from the inline icon builder: no extraction, network, or rendering code.
+// Its two strings live here so the UI dictionaries are not injected into every page.
+import type { Locale } from "./i18n";
 import { icon, isIcon } from "./icons";
+
+const TEXT: Record<Locale, { reload: string; frame: string }> = {
+  en: {
+    reload: "Valise was updated or reloaded. Refresh the page.",
+    frame: "Valise selection popup",
+  },
+  "zh-CN": {
+    reload: "扩展已更新或重新加载，请刷新页面。",
+    frame: "Valise 划词问答",
+  },
+};
 
 (() => {
   const global = window as Window & { __valise?: { dispose: () => void } };
@@ -17,6 +30,7 @@ import { icon, isIcon } from "./icons";
     enabled: boolean;
     width: number;
     actions: { id: string; name: string; icon?: string }[];
+    locale: Locale;
   };
   let selected: Selected | undefined;
   let prefs: Prefs | undefined;
@@ -39,7 +53,7 @@ import { icon, isIcon } from "./icons";
   global.__valise = { dispose: clean };
   const message = async (data: unknown) => {
     const r = await chrome.runtime.sendMessage(data);
-    if (!r?.ok) throw new Error(r?.error || "扩展已更新或重新加载，请刷新页面。");
+    if (!r?.ok) throw new Error(r?.error || TEXT[prefs?.locale ?? "en"].reload);
     return r.data;
   };
   // Fetched on first use, so ordinary page loads never wake the service worker.
@@ -48,7 +62,7 @@ import { icon, isIcon } from "./icons";
     try {
       prefs = (await message({ type: "CONTENT_PREFS" })) as Prefs;
     } catch {
-      prefs = { enabled: false, width: 460, actions: [] };
+      prefs = { enabled: false, width: 460, actions: [], locale: prefs?.locale ?? "en" };
     }
     prefsAt = Date.now();
     return prefs;
@@ -149,11 +163,11 @@ import { icon, isIcon } from "./icons";
     hideToolbar();
     closeFloat();
     try {
-      const { width } = await loadPrefs();
+      const { width, locale } = await loadPrefs();
       const result = await message({ type: "CREATE_FLOAT", action, selection: selected });
       floatId = result.id;
       frame = document.createElement("iframe");
-      frame.title = "Valise 划词问答";
+      frame.title = TEXT[locale].frame;
       frame.allow = "clipboard-write";
       frame.src =
         chrome.runtime.getURL("floating.html") + "?session=" + encodeURIComponent(floatId);

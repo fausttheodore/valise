@@ -1,15 +1,14 @@
 // Derived from Page Assist src/parser/default.ts at c54bc6f41644e83b8130532814f7b62e01a47300 (MIT).
 // The fallback covers sibling articles and preserves page math sources before conversion.
 import Defuddle, { createMarkdownContent } from "defuddle/full";
+import { t } from "./i18n";
 
 export function extractHtml(
   html: string,
   url: string,
 ): { content: string; warnings: string[] } {
   const doc = new DOMParser().parseFromString(html, "text/html");
-  const warnings = [
-    "仅包含当前已加载且可访问的正文；未展开、懒加载或虚拟列表内容可能不完整。",
-  ];
+  const warnings = [t("extract.partial")];
   for (const node of doc.querySelectorAll(".katex,mjx-container,.MathJax")) {
     const tex =
       node.querySelector('annotation[encoding="application/x-tex"]')
@@ -38,12 +37,8 @@ export function extractHtml(
     );
     node.replaceWith(math);
   }
-  if (doc.querySelector("iframe"))
-    warnings.push(
-      "嵌入 frame 正文未合并；请在该 frame 内选区提问，或单独打开来源页面。",
-    );
-  if (doc.querySelector("mjx-container,.MathJax"))
-    warnings.push("部分公式未提供可恢复的 TeX 源，保留可读文本。");
+  if (doc.querySelector("iframe")) warnings.push(t("extract.frames"));
+  if (doc.querySelector("mjx-container,.MathJax")) warnings.push(t("extract.math"));
   doc
     .querySelectorAll(
       'script,style,link,noscript,nav,footer,aside,[role="navigation"],[hidden],[data-valise-root],.advertisement,.ads',
@@ -58,7 +53,7 @@ export function extractHtml(
     (articles.length === 1 ? articles[0] : doc.body);
   const fallback = () => createMarkdownContent(root.innerHTML, url).trim();
   if (articles.length > 1) {
-    warnings.push("已保留多个文章/讨论内容块。");
+    warnings.push(t("extract.articles"));
     return { content: fallback(), warnings };
   }
   let content = "";
@@ -69,12 +64,12 @@ export function extractHtml(
     if (result.content)
       content = createMarkdownContent(result.content, url).trim();
   } catch {
-    warnings.push("正文识别未成功，已使用结构化回退。");
+    warnings.push(t("extract.defuddleFailed"));
   }
   const plain = (root.textContent || "").trim();
   if (!content || content.length < plain.length * 0.3) {
     content = fallback();
-    warnings.push("使用结构化回退以保留更多当前页面内容。");
+    warnings.push(t("extract.fallback"));
   }
   return { content, warnings };
 }

@@ -1,4 +1,5 @@
 import { redact, searchKeys, searchMeta } from "./config";
+import { t } from "./i18n";
 import { RequestScope } from "./request";
 import type { SearchProviderId, Settings, Source } from "./types";
 
@@ -123,16 +124,13 @@ export async function search(
 ): Promise<Source[]> {
   const meta = searchMeta(settings.provider);
   const { baseUrl, apiKey } = settings.services[settings.provider];
-  if (!baseUrl) throw new Error(`请在设置中填写 ${meta.name} 的接口地址。`);
+  if (!baseUrl) throw new Error(t("search.noUrl", { name: meta.name }));
   if (meta.keyRequired && !apiKey)
-    throw new Error(`请在设置中配置 ${meta.name} key；联网搜索需要实际的搜索 API。`);
-  if (!query.trim() || query.length > 1500)
-    throw new Error(
-      "搜索查询须为 1–1500 个字符；请填写必要的简短查询，不发送整页或完整对话。",
-    );
+    throw new Error(t("search.noKey", { name: meta.name }));
+  if (!query.trim() || query.length > 1500) throw new Error(t("search.badQuery"));
   const child = new AbortController();
   const timer = setTimeout(
-    () => child.abort(new Error("搜索超时。")),
+    () => child.abort(new Error(t("search.timeout"))),
     settings.timeout * 1000,
   );
   const combined = AbortSignal.any([scope.signal, child.signal]);
@@ -150,15 +148,18 @@ export async function search(
     if (!response.ok)
       throw new Error(
         redact(
-          `${meta.name} 搜索 HTTP ${response.status}：${await response.text()}`,
+          t("search.http", {
+            name: meta.name,
+            status: response.status,
+            body: await response.text(),
+          }),
           searchKeys(settings),
         ),
       );
     const data = await response.json();
     scope.check();
     const hits = adapter.hits(data);
-    if (!Array.isArray(hits))
-      throw new Error(`${meta.name} 没有返回可识别的搜索结果。`);
+    if (!Array.isArray(hits)) throw new Error(t("search.noResults", { name: meta.name }));
     let remaining = settings.maxChars;
     return hits
       .map((r) => ({ title: plain(r.title), url: String(r.url || ""), snippet: plain(r.snippet) }))

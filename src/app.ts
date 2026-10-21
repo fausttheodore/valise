@@ -17,6 +17,7 @@ import {
 } from "./browser";
 import { createComposer } from "./composer";
 import {
+  applyLocale,
   capabilities,
   loadSettings,
   normalizeSettings,
@@ -25,6 +26,7 @@ import {
 } from "./config";
 import { estimateTokens, inferTask, messageTokens } from "./context";
 import { append, compactNumber, h } from "./dom";
+import { formatNumber, getLocale, t, type MessageKey } from "./i18n";
 import { actionIcon, quoteText } from "./render";
 import { exportFile, openHistory } from "./history";
 import { icon, type IconName } from "./icons";
@@ -72,7 +74,9 @@ const floating = location.pathname.endsWith("floating.html");
 const sessionId = new URLSearchParams(location.search).get("session");
 document.documentElement.dataset.mode = floating ? "float" : "panel";
 
-let settings: Settings;
+// Loaded before any label is built, so the whole page uses the configured language.
+let settings: Settings = await loadSettings();
+document.documentElement.lang = getLocale();
 let conversation: Conversation;
 let page: PageSnapshot | undefined;
 let tab: { id?: number; title: string; url: string } | undefined;
@@ -94,15 +98,15 @@ let active:
 
 // ---------------------------------------------------------------- layout
 const app = document.querySelector<HTMLDivElement>("#app")!;
-const titleText = h("span", { class: "title-text" }, "新对话");
+const titleText = h("span", { class: "title-text" }, t("app.newChat"));
 const header = floating
   ? h(
       "header",
       { class: "topbar float-bar" },
       h("span", { class: "float-badge" }),
       h("span", { class: "grow" }),
-      iconButton("sidebar", "在侧栏继续", () => void transfer()),
-      iconButton("x", "关闭 (Esc)", () => void closeFloat()),
+      iconButton("sidebar", t("app.continueInPanel"), () => void transfer()),
+      iconButton("x", t("app.closeEsc"), () => void closeFloat()),
     )
   : h(
       "header",
@@ -112,15 +116,15 @@ const header = floating
         {
           type: "button",
           class: "title-btn",
-          title: "历史会话",
+          title: t("history.title"),
           onclick: () => showHistory(),
         },
         icon("history", 16),
         titleText,
         icon("chevronDown", 14),
       ),
-      iconButton("newChat", "新对话", () => void newChat()),
-      iconButton("more", "更多", (event) =>
+      iconButton("newChat", t("app.newChat"), () => void newChat()),
+      iconButton("more", t("app.more"), (event) =>
         moreMenu(event.currentTarget as HTMLElement),
       ),
     );
@@ -156,7 +160,7 @@ const composer = createComposer({
   onStop: () => active?.scope.abort(),
   onFiles: (files) => void addFiles(files),
   listTabs: floating ? undefined : listTabs,
-  onMention: (t) => setMentions([...mentions, t]),
+  onMention: (x) => setMentions([...mentions, x]),
   onAttachMenu: floating ? undefined : attachMenu,
   onContextMenu: contextMenu,
   onSearchMenu: searchMenu,
@@ -183,7 +187,7 @@ const persistIfStarted = () => {
 function fresh(): Conversation {
   return {
     id: uid(),
-    title: "新对话",
+    title: t("app.newChat"),
     messages: [],
     updatedAt: Date.now(),
     profileId: settings.activeProfileId || undefined,
@@ -194,13 +198,13 @@ function fresh(): Conversation {
 function updateTitle() {
   titleText.textContent = conversation.messages.length
     ? conversation.title
-    : "新对话";
+    : t("app.newChat");
 }
 function renderModel() {
   const p = currentProfile();
   composer.setModel(
-    p ? p.name : "未配置模型",
-    p ? `${p.name} · ${p.model}` : "点击添加模型配置",
+    p ? p.name : t("app.noModel"),
+    p ? `${p.name} · ${p.model}` : t("app.addModelHint"),
   );
   renderUsage();
 }
@@ -223,7 +227,10 @@ function renderUsage() {
   composer.setUsage(
     u && {
       ratio: u.used / u.limit,
-      title: `上下文 ${u.reported ? "" : "≈"}${compactNumber(u.used)} / ${compactNumber(u.limit)} token（点击查看用量）`,
+      title: t("app.usage.title", {
+        used: (u.reported ? "" : "≈") + compactNumber(u.used),
+        limit: compactNumber(u.limit),
+      }),
     },
   );
 }
@@ -252,11 +259,11 @@ function usageMenu(anchor: HTMLElement) {
         h(
           "div",
           { class: "usage-head" },
-          h("span", null, "上下文"),
+          h("span", null, t("app.usage.context")),
           h(
             "strong",
             null,
-            `${u.reported ? "" : "≈"}${u.used.toLocaleString()} / ${u.limit.toLocaleString()}`,
+            `${u.reported ? "" : "≈"}${formatNumber(u.used)} / ${formatNumber(u.limit)}`,
           ),
         ),
         h(
@@ -267,20 +274,20 @@ function usageMenu(anchor: HTMLElement) {
         h(
           "p",
           { class: "usage-note" },
-          u.reported
-            ? "按最近一次请求的实际输入与输出计算；下次提问还会加上新读取的网页和搜索结果。上限为模型配置中的上下文预算。"
-            : "服务商尚未返回用量，这里按字符数估算。上限为模型配置中的上下文预算。",
+          t(u.reported ? "app.usage.noteReported" : "app.usage.noteEstimated"),
         ),
-        h("div", { class: "usage-title" }, "本会话累计"),
+        h("div", { class: "usage-title" }, t("app.usage.total")),
         calls
           ? [
-              row("输入", total.input.toLocaleString()),
-              total.cached ? row("其中缓存命中", total.cached.toLocaleString()) : null,
-              row("输出", total.output.toLocaleString()),
-              total.reasoning ? row("其中思考", total.reasoning.toLocaleString()) : null,
-              row("模型调用", `${calls} 次`),
+              row(t("app.usage.input"), formatNumber(total.input)),
+              total.cached ? row(t("app.usage.cached"), formatNumber(total.cached)) : null,
+              row(t("app.usage.output"), formatNumber(total.output)),
+              total.reasoning
+                ? row(t("app.usage.reasoning"), formatNumber(total.reasoning))
+                : null,
+              row(t("app.usage.calls"), t("app.usage.callsValue", { count: calls })),
             ]
-          : h("p", { class: "usage-note" }, "还没有服务商返回的用量记录。"),
+          : h("p", { class: "usage-note" }, t("app.usage.none")),
       ),
     ],
     { placement: "top", align: "end" },
@@ -316,7 +323,7 @@ function setConversation(c: Conversation) {
   for (const m of c.messages)
     if (BUSY.includes(m.status as Stage)) {
       m.status = "interrupted";
-      m.error = "上次请求已中断，可以继续提问或重新生成。";
+      m.error = t("app.interrupted");
     }
   conversation = c;
   page = undefined;
@@ -333,15 +340,17 @@ function setConversation(c: Conversation) {
 // ---------------------------------------------------------------- empty state
 function greeting() {
   const hour = new Date().getHours();
-  return hour < 5
-    ? "夜深了"
-    : hour < 11
-      ? "早上好"
-      : hour < 13
-        ? "中午好"
-        : hour < 18
-          ? "下午好"
-          : "晚上好";
+  return t(
+    hour < 5
+      ? "app.greeting.night"
+      : hour < 11
+        ? "app.greeting.morning"
+        : hour < 13
+          ? "app.greeting.noon"
+          : hour < 18
+            ? "app.greeting.afternoon"
+            : "app.greeting.evening",
+  );
 }
 function suggestion(name: IconName, title: string, hint: string, run: () => void) {
   return h(
@@ -361,12 +370,12 @@ function emptyView(): HTMLElement {
   const wrap = h("div", { class: "empty" });
   wrap.append(
     h("div", { class: "brand-mark" }, icon("sparkles", 22)),
-    h("h2", { class: "empty-title" }, `${greeting()}，今天读点什么？`),
+    h("h2", { class: "empty-title" }, t("app.emptyTitle", { greeting: greeting() })),
   );
   if (!settings.profiles.length) {
     wrap.append(
-      h("p", { class: "empty-sub" }, "先添加一个模型配置，就可以开始阅读、提问和划词了。"),
-      button("添加模型配置", openOptions, "btn-primary", "plus"),
+      h("p", { class: "empty-sub" }, t("app.emptyNoModel")),
+      button(t("app.addModel"), openOptions, "btn-primary", "plus"),
     );
     return wrap;
   }
@@ -375,9 +384,7 @@ function emptyView(): HTMLElement {
     h(
       "p",
       { class: "empty-sub" },
-      readable
-        ? "我会读取当前标签页的正文来回答，也可以直接闲聊。"
-        : "当前标签页不是普通网页，可以直接聊天。",
+      t(readable ? "app.emptyReadable" : "app.emptyUnreadable"),
     ),
   );
   if (readable && tab) {
@@ -397,17 +404,23 @@ function emptyView(): HTMLElement {
         "div",
         { class: "suggestions" },
         isPdfUrl(tab.url)
-          ? suggestion("file", "阅读这个 PDF", "作为附件发送给模型", () =>
+          ? suggestion("file", t("app.suggest.pdf"), t("app.suggest.pdfHint"), () =>
               void attachPdf(tab!.url),
             )
           : [
-              suggestion("sparkles", "总结全文", "逐段覆盖整页，不只看片段", () =>
-                quick("summarize"),
+              suggestion(
+                "sparkles",
+                t("app.suggest.summarize"),
+                t("app.suggest.summarizeHint"),
+                () => quick("summarize"),
               ),
-              suggestion("languages", "翻译全文", "按段落翻译成中文", () =>
-                quick("translate"),
+              suggestion(
+                "languages",
+                t("app.suggest.translate"),
+                t("app.suggest.translateHint"),
+                () => quick("translate"),
               ),
-              suggestion("bulb", "梳理关键概念", "提炼观点、术语与结构", () =>
+              suggestion("bulb", t("app.suggest.concepts"), t("app.suggest.conceptsHint"), () =>
                 quick("question"),
               ),
             ],
@@ -418,46 +431,57 @@ function emptyView(): HTMLElement {
 }
 function quick(task: TaskMode) {
   if (conversation.contextMode === "none") setContextMode("page");
-  const presets: Record<TaskMode, [string, MessageDisplay]> = {
-    summarize: ["请总结当前页面全文。", { action: "总结全文", icon: "sparkles" }],
+  const presets: Record<TaskMode, [MessageKey, MessageDisplay]> = {
+    summarize: [
+      "app.prompt.summarize",
+      { action: t("app.suggest.summarize"), icon: "sparkles" },
+    ],
     translate: [
-      "请将当前页面全文翻译成中文。",
-      { action: "翻译全文", icon: "languages" },
+      "app.prompt.translate",
+      { action: t("app.suggest.translate"), icon: "languages" },
     ],
-    question: [
-      "梳理这一页的核心观点、关键概念与术语，并说明它们之间的关系。",
-      { action: "梳理关键概念", icon: "bulb" },
-    ],
+    question: ["app.prompt.concepts", { action: t("app.suggest.concepts"), icon: "bulb" }],
   };
   const [text, display] = presets[task];
-  void submit({ text, task, display });
+  void submit({ text: t(text), task, display });
 }
 
 // ---------------------------------------------------------------- menus
+const CONTEXT_NAME: Record<ContextMode, MessageKey> = {
+  none: "mode.none",
+  page: "mode.page",
+  selection: "mode.selection",
+  "selection-page": "mode.selectionPage",
+};
+const SEARCH_NAME: Record<SearchMode, MessageKey> = {
+  off: "searchMode.off",
+  auto: "searchMode.auto",
+  required: "searchMode.required",
+};
 function contextMenu(anchor: HTMLElement) {
-  const modes: [ContextMode, string, string, IconName][] = floating
+  const modes: [ContextMode, MessageKey, IconName][] = floating
     ? [
-        ["selection-page", "选区 + 正文", "结合整页理解选中的文字", "layers"],
-        ["selection", "仅选区", "只发送选中的文字", "cursor"],
+        ["selection-page", "app.ctx.selectionPageFloat", "layers"],
+        ["selection", "app.ctx.selectionFloat", "cursor"],
       ]
     : [
-        ["none", "不读取网页", "普通聊天", "message"],
-        ["page", "当前页正文", "读取标签页中已加载的正文", "page"],
-        ["selection", "仅选区", "只发送页面上选中的文字", "cursor"],
-        ["selection-page", "选区 + 正文", "选中的文字，附带全文作参考", "layers"],
+        ["none", "app.ctx.none", "message"],
+        ["page", "app.ctx.page", "page"],
+        ["selection", "app.ctx.selection", "cursor"],
+        ["selection-page", "app.ctx.selectionPage", "layers"],
       ];
   const entries: MenuEntry[] = [
-    { heading: "网页上下文" },
-    ...modes.map(([value, label, hint, name]) => ({
-      label,
-      hint,
+    { heading: t("app.ctx.heading") },
+    ...modes.map(([value, hint, name]) => ({
+      label: t(CONTEXT_NAME[value]),
+      hint: t(hint),
       icon: name,
       checked: conversation.contextMode === value,
       action: () => setContextMode(value),
     })),
     "separator",
     {
-      label: "预览提取内容",
+      label: t("app.ctx.preview"),
       icon: "eye",
       disabled: conversation.contextMode === "none",
       action: () => void preview(),
@@ -471,32 +495,31 @@ function searchMenu(anchor: HTMLElement) {
   const ready = searchReady(settings.search);
   const service = searchMeta(settings.search.provider).name;
   const autoHint = !caps
-    ? "需要先配置模型"
+    ? t("app.search.needModel")
     : caps.nativeSearch
       ? p!.provider === "gemini"
-        ? "由 Gemini 自行决定是否用 Google 搜索"
-        : "使用模型自带的联网搜索"
+        ? t("app.search.gemini")
+        : t("app.search.native")
       : caps.tools
         ? ready
-          ? `模型按需调用 ${service} 搜索`
-          : "模型可调用搜索工具（需先配置搜索服务）"
-        : "当前模型没有自带联网，也未启用工具调用";
-  const modes: [SearchMode, string, string, IconName][] = [
-    ["off", "关闭", "只用网页内容和模型自身知识", "x"],
-    ["auto", "按需搜索", autoHint, "sparkles"],
+          ? t("app.search.tool", { service })
+          : t("app.search.toolNotReady")
+        : t("app.search.unsupported");
+  const modes: [SearchMode, string, IconName][] = [
+    ["off", t("app.search.offHint"), "x"],
+    ["auto", autoHint, "sparkles"],
     [
       "required",
-      "先搜索再回答",
-      ready ? `每次提问先用 ${service} 搜索` : "需在设置中配置搜索服务",
+      ready ? t("app.search.requiredHint", { service }) : t("app.search.requiredNotReady"),
       "search",
     ],
   ];
   openMenu(
     anchor,
     [
-      { heading: "联网搜索" },
-      ...modes.map(([value, label, hint, name]) => ({
-        label,
+      { heading: t("app.search.heading") },
+      ...modes.map(([value, hint, name]) => ({
+        label: t(SEARCH_NAME[value]),
         hint,
         icon: name,
         checked: conversation.searchMode === value,
@@ -514,7 +537,7 @@ function modelMenu(anchor: HTMLElement) {
   const current = currentProfile();
   const entries: MenuEntry[] = settings.profiles.length
     ? [
-        { heading: "模型配置" },
+        { heading: t("app.model.heading") },
         ...settings.profiles.map((p) => ({
           label: p.name,
           hint: p.model + " · " + hostOf(p.baseUrl),
@@ -529,33 +552,33 @@ function modelMenu(anchor: HTMLElement) {
         "separator",
       ]
     : [];
-  entries.push({ label: "管理模型配置…", icon: "settings", action: openOptions });
+  entries.push({ label: t("app.model.manage"), icon: "settings", action: openOptions });
   openMenu(anchor, entries, { placement: "top", align: "end" });
 }
 function attachMenu(anchor: HTMLElement) {
   const entries: MenuEntry[] = [
     {
-      label: "上传图片或文件",
-      hint: "图片、PDF、文本与代码；也可粘贴或拖入",
+      label: t("app.attach.upload"),
+      hint: t("app.attach.uploadHint"),
       icon: "paperclip",
       action: () => fileInput.click(),
     },
     {
-      label: "截取当前页面",
-      hint: "标签页的可见区域",
+      label: t("app.attach.screenshot"),
+      hint: t("app.attach.screenshotHint"),
       icon: "scan",
       action: () => void screenshot(),
     },
     {
-      label: "引用其他标签页",
-      hint: "一起读取多个网页；也可直接输入 @",
+      label: t("app.attach.mention"),
+      hint: t("app.attach.mentionHint"),
       icon: "at",
       action: () => composer.startMention(),
     },
   ];
   if (tab && isPdfUrl(tab.url))
     entries.push({
-      label: "附加当前 PDF",
+      label: t("app.attach.pdf"),
       hint: tab.title || hostOf(tab.url),
       icon: "file",
       action: () => void attachPdf(tab!.url),
@@ -568,34 +591,36 @@ function moreMenu(anchor: HTMLElement) {
     anchor,
     [
       {
-        label: "重命名",
+        label: t("common.rename"),
         icon: "edit",
         disabled: !started,
         action: () => void rename(),
       },
       {
-        label: "会话提示词",
-        hint: conversation.systemPrompt ? "已覆盖全局提示词" : "使用全局提示词",
+        label: t("app.sessionPrompt"),
+        hint: t(
+          conversation.systemPrompt ? "app.sessionPrompt.overridden" : "app.sessionPrompt.global",
+        ),
         icon: "pen",
         action: sessionPrompt,
       },
-      { label: "生效配置", icon: "info", action: effectiveConfig },
+      { label: t("app.effective"), icon: "info", action: effectiveConfig },
       {
-        label: "导出 Markdown",
+        label: t("common.exportMarkdown"),
         icon: "download",
         disabled: !started,
         action: () => exportFile(conversation),
       },
       "separator",
       {
-        label: "删除会话",
+        label: t("common.deleteConversation"),
         icon: "trash",
         danger: true,
         disabled: !started,
         action: () => void removeCurrent(),
       },
       "separator",
-      { label: "设置", icon: "settings", action: openOptions },
+      { label: t("app.settings"), icon: "settings", action: openOptions },
     ],
     { align: "end" },
   );
@@ -617,7 +642,7 @@ function setAttachments(next: Attachment[]) {
 function setMentions(next: TabRef[]) {
   mentions = next;
   composer.setMentions(mentions, (id) =>
-    setMentions(mentions.filter((t) => t.tabId !== id)),
+    setMentions(mentions.filter((x) => x.tabId !== id)),
   );
 }
 function setQuotes(next: string[]) {
@@ -628,31 +653,34 @@ function setQuotes(next: string[]) {
 }
 /** Open web tabs for the @ picker: this window first, most recently used first. */
 async function listTabs() {
-  const taken = new Set(mentions.map((t) => t.tabId));
+  const taken = new Set(mentions.map((x) => x.tabId));
   return (await chrome.tabs.query({}))
-    .filter((t) => t.id !== undefined && /^https?:/.test(t.url || "") && !taken.has(t.id))
+    .filter((x) => x.id !== undefined && /^https?:/.test(x.url || "") && !taken.has(x.id))
     .sort(
       (a, b) =>
         Number(b.windowId === windowId) - Number(a.windowId === windowId) ||
         b.lastAccessed - a.lastAccessed,
     )
-    .map((t) => ({
-      tabId: t.id!,
-      title: t.title || "",
-      url: t.url || "",
+    .map((x) => ({
+      tabId: x.id!,
+      title: x.title || "",
+      url: x.url || "",
       hint:
-        t.id === tab?.id
-          ? conversation.contextMode === "none"
-            ? "当前标签页"
-            : "当前标签页 · 已按「网页」设置读取"
-          : t.discarded
-            ? hostOf(t.url || "") + " · 已休眠，引用前请先打开"
+        x.id === tab?.id
+          ? t(conversation.contextMode === "none" ? "app.tabs.current" : "app.tabs.currentRead")
+          : x.discarded
+            ? t("app.tabs.discarded", { host: hostOf(x.url || "") })
             : undefined,
     }));
 }
-/** "引用" button over a selection inside an answer; adds the passage to the composer. */
+/** "Quote" button over a selection inside an answer; adds the passage to the composer. */
 function setupQuoting() {
-  const quote = h("button", { type: "button", class: "quote-btn" }, icon("quote", 13), "引用");
+  const quote = h(
+    "button",
+    { type: "button", class: "quote-btn" },
+    icon("quote", 13),
+    t("app.quote"),
+  );
   quote.hidden = true;
   document.body.append(quote);
   let range: Range | undefined;
@@ -699,7 +727,7 @@ function setupQuoting() {
 async function addFiles(files: File[]) {
   for (const file of files) {
     if (attachments.length >= MAX_ATTACHMENTS) {
-      toast(`最多添加 ${MAX_ATTACHMENTS} 个附件`, "error");
+      toast(t("app.tooManyFiles", { max: MAX_ATTACHMENTS }), "error");
       break;
     }
     try {
@@ -712,21 +740,21 @@ async function addFiles(files: File[]) {
 }
 async function screenshot() {
   if (attachments.length >= MAX_ATTACHMENTS)
-    return toast(`最多添加 ${MAX_ATTACHMENTS} 个附件`, "error");
+    return toast(t("app.tooManyFiles", { max: MAX_ATTACHMENTS }), "error");
   try {
     setAttachments([...attachments, await captureTab(windowId)]);
     composer.focus();
   } catch (error) {
-    toast("截图失败：" + errorText(error), "error");
+    toast(t("app.screenshotFailed", { error: errorText(error) }), "error");
   }
 }
 async function attachPdf(url: string) {
-  setStatus("正在下载 PDF…", "busy");
+  setStatus(t("app.downloadingPdf"), "busy");
   try {
     setAttachments([...attachments, await attachmentFromUrl(url)]);
     if (conversation.contextMode !== "none") setContextMode("none");
     setStatus("");
-    toast("已附加 PDF，可以直接提问", "success");
+    toast(t("app.pdfAttached"), "success");
     composer.focus();
   } catch (error) {
     setStatus(errorText(error), "error");
@@ -736,10 +764,10 @@ async function attachPdf(url: string) {
 // ---------------------------------------------------------------- page context
 async function refreshTab() {
   if (floating) return;
-  const t = await activeTab(windowId).catch(() => undefined);
-  const next = t ? { id: t.id, title: t.title || "", url: t.url || "" } : undefined;
-  const changed = next?.url !== tab?.url || next?.id !== tab?.id;
-  tab = next;
+  const next = await activeTab(windowId).catch(() => undefined);
+  const value = next ? { id: next.id, title: next.title || "", url: next.url || "" } : undefined;
+  const changed = value?.url !== tab?.url || value?.id !== tab?.id;
+  tab = value;
   if (page && (page.tabId !== tab?.id || page.url !== tab?.url)) page = undefined;
   renderContext();
   if (changed && !conversation.messages.length) thread.refreshEmpty();
@@ -769,12 +797,15 @@ async function currentPage(): Promise<PageSnapshot | undefined> {
 }
 async function refreshPage() {
   page = undefined;
-  setStatus("正在读取网页…", "busy");
+  setStatus(t("app.readingPage"), "busy");
   try {
     const result = await currentPage();
     setStatus(
       result
-        ? `已读取 ${result.content.length.toLocaleString()} 字 · ≈${estimateTokens(result.content).toLocaleString()} token`
+        ? t("app.pageRead", {
+            chars: formatNumber(result.content.length),
+            tokens: formatNumber(estimateTokens(result.content)),
+          })
         : "",
     );
   } catch (error) {
@@ -782,16 +813,20 @@ async function refreshPage() {
   }
 }
 async function preview() {
-  const body = h("div", { class: "preview" }, h("div", { class: "preview-loading" }, spinner(), "正在读取网页…"));
+  const loading = () =>
+    h("div", { class: "preview-loading" }, spinner(), t("app.readingPage"));
+  const body = h("div", { class: "preview" }, loading());
   let text = "";
-  const copyButton = button("复制正文", () => {
-    void navigator.clipboard.writeText(text).then(() => toast("已复制", "success"));
+  const copyButton = button(t("app.copyText"), () => {
+    void navigator.clipboard
+      .writeText(text)
+      .then(() => toast(t("common.copied"), "success"));
   }, "btn-ghost", "copy");
   const load = async () => {
     try {
       const r = await currentPage();
       if (!r) {
-        body.replaceChildren(h("p", { class: "muted" }, "当前为普通聊天，不读取网页。"));
+        body.replaceChildren(h("p", { class: "muted" }, t("app.preview.none")));
         return;
       }
       text = r.content;
@@ -811,9 +846,17 @@ async function preview() {
         h(
           "div",
           { class: "stat-row" },
-          h("span", { class: "stat" }, `${r.content.length.toLocaleString()} 字符`),
-          h("span", { class: "stat" }, `≈ ${estimateTokens(r.content).toLocaleString()} token`),
-          h("span", { class: "stat" }, r.status === "loaded" ? "已提取" : "未提取到正文"),
+          h("span", { class: "stat" }, t("app.chars", { count: formatNumber(r.content.length) })),
+          h(
+            "span",
+            { class: "stat" },
+            t("app.tokensApprox", { count: formatNumber(estimateTokens(r.content)) }),
+          ),
+          h(
+            "span",
+            { class: "stat" },
+            t(r.status === "loaded" ? "app.preview.loaded" : "app.preview.empty"),
+          ),
         ),
         r.warnings.length
           ? h(
@@ -823,19 +866,24 @@ async function preview() {
             )
           : null,
         r.selection
-          ? h("blockquote", { class: "preview-selection" }, h("strong", null, "选区"), r.selection.text)
+          ? h(
+              "blockquote",
+              { class: "preview-selection" },
+              h("strong", null, t("app.preview.selection")),
+              r.selection.text,
+            )
           : null,
-        h("pre", { class: "preview-text" }, r.content || "（空）"),
+        h("pre", { class: "preview-text" }, r.content || t("common.empty")),
       ]);
     } catch (error) {
       body.replaceChildren(errorBox(errorText(error)));
     }
   };
-  showDialog("网页上下文", body, {
+  showDialog(t("app.ctx.heading"), body, {
     wide: true,
     footer: [
-      button("重新读取", () => {
-        body.replaceChildren(h("div", { class: "preview-loading" }, spinner(), "正在读取网页…"));
+      button(t("app.reload"), () => {
+        body.replaceChildren(loading());
         void load();
       }, "btn-ghost", "refresh"),
       copyButton,
@@ -855,21 +903,21 @@ function fixAction(): { label: string; run: () => void } | undefined {
   if (!f) return undefined;
   if (f.code === "NO_ACCESS" && f.data)
     return {
-      label: "授权访问此网站",
+      label: t("app.fix.grant"),
       run: () =>
         void chrome.permissions.request({ origins: [f.data!] }).then((ok) => {
-          if (!ok) return toast("未获得授权；可改为不读取网页", "error");
+          if (!ok) return toast(t("app.fix.denied"), "error");
           fix = undefined;
-          toast("已授权", "success");
+          toast(t("app.fix.granted"), "success");
           if (composer.input.value.trim()) void submit();
           else setStatus("");
         }),
     };
   if (f.code === "PDF" && f.data)
-    return { label: "作为附件发送 PDF", run: () => void attachPdf(f.data!) };
+    return { label: t("app.fix.pdf"), run: () => void attachPdf(f.data!) };
   if (f.code === "RESTRICTED" && !floating)
     return {
-      label: "改为普通聊天",
+      label: t("app.fix.plainChat"),
       run: () => {
         setContextMode("none");
         setStatus("");
@@ -883,24 +931,29 @@ function showError(text: string) {
 }
 
 // ---------------------------------------------------------------- requests
-const STAGE_TEXT: Record<Stage, string> = {
-  preparing: "正在准备上下文",
-  searching: "正在搜索",
-  connecting: "等待模型响应",
-  streaming: "正在生成",
-  complete: "",
-  cancelled: "已停止",
-  timeout: "已超时",
-  failed: "请求失败",
-  interrupted: "已中断",
+const STAGE_TEXT: Record<Stage, MessageKey> = {
+  preparing: "stage.preparing",
+  searching: "stage.searching",
+  connecting: "stage.connecting",
+  streaming: "stage.streaming",
+  complete: "stage.complete",
+  cancelled: "stage.cancelled",
+  timeout: "stage.timeout",
+  failed: "stage.failed",
+  interrupted: "stage.interrupted",
 };
 function onStage(e: RequestEvent) {
   if (e.stage === "complete") return setStatus(e.detail || "");
   if (e.stage === "cancelled") return setStatus("");
   if (e.stage === "failed" || e.stage === "timeout")
-    return showError(`${STAGE_TEXT[e.stage]}：${e.detail || "未知错误"}`);
+    return showError(
+      t("common.labelValue", {
+        label: t(STAGE_TEXT[e.stage]),
+        value: e.detail || t("common.unknownError"),
+      }),
+    );
   setStatus(
-    STAGE_TEXT[e.stage] + (e.detail && e.stage !== "streaming" ? " · " + e.detail : "…"),
+    t(STAGE_TEXT[e.stage]) + (e.detail && e.stage !== "streaming" ? " · " + e.detail : "…"),
     "busy",
   );
 }
@@ -924,20 +977,20 @@ async function submit(
   const text = quoted.length
     ? quoted.map((q) => q.replace(/^/gm, "> ")).join("\n\n") +
       "\n\n" +
-      (typedText || "请解释引用的这段内容。")
+      (typedText || t("app.prompt.explainQuote"))
     : typedText;
   const p = currentProfile();
   if (!p)
-    return setStatus("还没有可用的模型配置。", "error", {
-      label: "去添加",
+    return setStatus(t("app.noProfile"), "error", {
+      label: t("app.goAdd"),
       run: openOptions,
     });
   const caps = capabilities(p);
   if (files.some((a) => a.kind === "image") && !caps.vision)
-    return showError(`「${p.name}」未启用图片输入；可在设置的模型能力中开启，或移除图片。`);
+    return showError(t("app.noVision", { name: p.name }));
   if (files.some((a) => a.kind === "pdf") && !caps.documents)
-    return showError(`「${p.name}」未启用 PDF 输入；可在设置的模型能力中开启，或移除 PDF。`);
-  const question = text || "请阅读附件并回答。";
+    return showError(t("app.noPdf", { name: p.name }));
+  const question = text || t("app.prompt.readAttachment");
   const c = conversation;
   const before = c.messages.length;
   const scope = new RequestScope(p.timeouts);
@@ -953,7 +1006,7 @@ async function submit(
     setQuotes([]);
   }
   composer.setBusy(true);
-  setStatus("正在准备…", "busy");
+  setStatus(t("app.preparing"), "busy");
   thread.toBottom();
   try {
     await runTurn({
@@ -969,7 +1022,7 @@ async function submit(
       scope,
       getPage: currentPage,
       tabs,
-      readTab: (t) => readPage({ tabId: t.tabId }),
+      readTab: (x) => readPage({ tabId: x.tabId }),
       onEvent: (e) => {
         if (active?.id === e.requestId && conversation.id === e.conversationId)
           onStage(e);
@@ -1044,7 +1097,7 @@ async function newChat() {
 async function openConversation(id: string) {
   await settle();
   const c = await getConversation(id);
-  if (!c) return toast("会话不存在或已删除", "error");
+  if (!c) return toast(t("app.missingConversation"), "error");
   setConversation(c);
 }
 function showHistory() {
@@ -1062,24 +1115,33 @@ function showHistory() {
   });
 }
 async function rename() {
-  const name = await askText("重命名会话", "会话名称", conversation.title);
+  const name = await askText(
+    t("common.renameConversation"),
+    t("common.conversationName"),
+    conversation.title,
+  );
   if (!name) return;
   conversation.title = name;
   persistIfStarted();
   updateTitle();
 }
 async function removeCurrent() {
-  if (!(await confirmAction("删除会话", `删除「${conversation.title}」？此操作不可撤销。`)))
+  if (
+    !(await confirmAction(
+      t("common.deleteConversation"),
+      t("common.deleteConfirm", { title: conversation.title }),
+    ))
+  )
     return;
   await settle();
   await deleteConversation(conversation.id);
   await newChat();
-  toast("已删除");
+  toast(t("common.deleted"));
 }
 async function showSource(source: PageIdentity, snapshotId?: string) {
   const snapshot = snapshotId ? await getSnapshot(snapshotId) : undefined;
   showDialog(
-    "当时读取的网页",
+    t("app.source.title"),
     h(
       "div",
       { class: "preview" },
@@ -1097,12 +1159,18 @@ async function showSource(source: PageIdentity, snapshotId?: string) {
       h(
         "div",
         { class: "stat-row" },
-        h("span", { class: "stat" }, new Date(source.capturedAt).toLocaleString("zh-CN")),
-        snapshot ? h("span", { class: "stat" }, `${snapshot.content.length.toLocaleString()} 字符`) : null,
+        h("span", { class: "stat" }, new Date(source.capturedAt).toLocaleString(getLocale())),
+        snapshot
+          ? h(
+              "span",
+              { class: "stat" },
+              t("app.chars", { count: formatNumber(snapshot.content.length) }),
+            )
+          : null,
       ),
       snapshot
         ? h("pre", { class: "preview-text" }, snapshot.content)
-        : h("p", { class: "muted" }, "正文快照已按容量上限淘汰；来源标识仍保留。"),
+        : h("p", { class: "muted" }, t("app.source.evicted")),
     ),
     { wide: true },
   );
@@ -1113,29 +1181,29 @@ function sessionPrompt() {
     rows: 8,
     placeholder: settings.systemPrompt,
     value: conversation.systemPrompt || "",
-    "aria-label": "会话提示词",
+    "aria-label": t("app.sessionPrompt"),
   });
   const dialog: HTMLDialogElement = showDialog(
-    "会话提示词",
+    t("app.sessionPrompt"),
     h(
       "div",
       { class: "stack" },
-      h("p", { class: "dialog-text" }, "只对当前会话生效，会替换全局提示词。留空则使用全局提示词（占位文字）。"),
+      h("p", { class: "dialog-text" }, t("app.sessionPrompt.desc")),
       area,
     ),
     {
       footer: [
-        button("恢复全局", () => {
+        button(t("app.sessionPrompt.reset"), () => {
           conversation.systemPrompt = undefined;
           persistIfStarted();
           dialog.close();
-          toast("已恢复全局提示词");
+          toast(t("app.sessionPrompt.resetDone"));
         }, "btn-ghost"),
-        button("保存", () => {
+        button(t("common.save"), () => {
           conversation.systemPrompt = area.value.trim() || undefined;
           persistIfStarted();
           dialog.close();
-          toast("会话提示词已保存", "success");
+          toast(t("app.sessionPrompt.saved"), "success");
         }, "btn-primary"),
       ],
     },
@@ -1146,61 +1214,65 @@ function effectiveConfig() {
   const p = currentProfile();
   const c = p ? capabilities(p) : undefined;
   const row = (label: string, value: unknown) =>
-    h("div", { class: "kv" }, h("span", { class: "kv-key" }, label), h("span", { class: "kv-value" }, value === undefined || value === "" ? "默认" : String(value)));
-  const contextName: Record<ContextMode, string> = {
-    none: "不读取网页",
-    page: "当前页正文",
-    selection: "仅选区",
-    "selection-page": "选区 + 正文",
-  };
-  const searchName: Record<SearchMode, string> = {
-    off: "关闭",
-    auto: "按需搜索",
-    required: "先搜索再回答",
-  };
+    h(
+      "div",
+      { class: "kv" },
+      h("span", { class: "kv-key" }, label),
+      h(
+        "span",
+        { class: "kv-value" },
+        value === undefined || value === "" ? t("common.default") : String(value),
+      ),
+    );
   showDialog(
-    "生效配置",
+    t("app.effective"),
     h(
       "div",
       { class: "kv-list" },
-      h("h3", { class: "kv-section" }, "模型"),
+      h("h3", { class: "kv-section" }, t("app.cfg.model")),
       p
         ? [
-            row("配置", p.name),
-            row("协议", p.provider === "gemini" ? "Gemini 原生" : "OpenAI 兼容"),
-            row("模型", p.model),
-            row("接口", p.baseUrl),
-            row("API key", p.apiKey ? "已配置" : "未配置"),
-            row("上下文 / 输出", `${p.contextTokens} / ${p.maxOutputTokens} token`),
+            row(t("app.cfg.profile"), p.name),
+            row(t("app.cfg.protocol"), t(p.provider === "gemini" ? "protocol.gemini" : "protocol.openai")),
+            row(t("app.cfg.model"), p.model),
+            row(t("app.cfg.endpoint"), p.baseUrl),
+            row("API key", t(p.apiKey ? "app.cfg.set" : "app.cfg.unset")),
+            row(
+              t("app.cfg.budget"),
+              t("app.cfg.budgetValue", { context: p.contextTokens, output: p.maxOutputTokens }),
+            ),
             row("temperature", p.temperature),
             row("top_p", p.topP),
-            row("思考", p.reasoning),
-            row("超时", `首响应 ${p.timeouts.first}s · 空闲 ${p.timeouts.idle}s · 总 ${p.timeouts.total}s`),
+            row(t("app.cfg.reasoning"), p.reasoning),
+            row(t("app.cfg.timeouts"), t("app.cfg.timeoutsValue", p.timeouts)),
             row(
-              "能力",
+              t("app.cfg.capabilities"),
               [
-                c?.vision && "图片",
+                c?.vision && t("cap.vision"),
                 c?.documents && "PDF",
-                c?.tools && "工具调用",
-                c?.nativeSearch && "自带联网",
-                c && c.reasoning !== "none" && "思考控制",
+                c?.tools && t("cap.tools"),
+                c?.nativeSearch && t("cap.nativeSearch"),
+                c && c.reasoning !== "none" && t("cap.reasoning"),
               ]
                 .filter(Boolean)
-                .join(" · ") || "基础文本",
+                .join(" · ") || t("cap.textOnly"),
             ),
           ]
-        : h("p", { class: "muted" }, "尚未配置模型。"),
-      h("h3", { class: "kv-section" }, "会话"),
-      row("网页上下文", contextName[conversation.contextMode]),
-      row("联网搜索", searchName[conversation.searchMode]),
-      row("搜索服务", searchMeta(settings.search.provider).name),
-      row("提示词来源", conversation.systemPrompt ? "会话覆盖" : "全局"),
+        : h("p", { class: "muted" }, t("app.cfg.noModel")),
+      h("h3", { class: "kv-section" }, t("app.cfg.conversation")),
+      row(t("app.ctx.heading"), t(CONTEXT_NAME[conversation.contextMode])),
+      row(t("app.search.heading"), t(SEARCH_NAME[conversation.searchMode])),
+      row(t("app.cfg.searchService"), searchMeta(settings.search.provider).name),
+      row(
+        t("app.cfg.promptSource"),
+        t(conversation.systemPrompt ? "app.cfg.promptConversation" : "app.cfg.promptGlobal"),
+      ),
       h("pre", { class: "prompt-preview" }, conversation.systemPrompt ?? settings.systemPrompt),
-      h("h3", { class: "kv-section" }, "划词模板变量"),
-      row("{{selection}}", "选区原文"),
-      row("{{paragraph}}", "选区所在段落"),
-      row("{{title}}", "页面标题"),
-      row("{{url}}", "页面地址"),
+      h("h3", { class: "kv-section" }, t("app.cfg.variables")),
+      row("{{selection}}", t("var.selection")),
+      row("{{paragraph}}", t("var.paragraph")),
+      row("{{title}}", t("var.title")),
+      row("{{url}}", t("var.url")),
     ),
     { wide: true },
   );
@@ -1220,7 +1292,7 @@ async function transfer() {
     await send({ type: "TRANSFER", conversationId: conversation.id });
     await closeFloat();
   } catch (error) {
-    toast("转入侧栏失败：" + errorText(error), "error");
+    toast(t("app.transferFailed", { error: errorText(error) }), "error");
   }
 }
 async function closeFloat() {
@@ -1268,6 +1340,13 @@ function setupFloatChrome() {
 }
 
 // ---------------------------------------------------------------- lifecycle
+/** Labels are built once per page, so a language change reloads the panel and reopens the conversation. */
+async function reopen() {
+  await active?.done;
+  if (conversation.messages.length)
+    await chrome.storage.session.set({ pendingConversation: conversation.id });
+  location.reload();
+}
 addEventListener("pagehide", () => active?.scope.abort(), { once: true });
 chrome.runtime.onMessage.addListener((msg) => {
   if (!floating && msg?.type === "OPEN_CONVERSATION") {
@@ -1279,6 +1358,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "session" && windowId !== undefined && changes["panel:" + windowId])
     panelVisible = !!changes["panel:" + windowId].newValue;
   if (area === "local" && changes.settings && conversation) {
+    const locale = getLocale();
+    // The float keeps its language until it closes.
+    if (!floating) applyLocale(changes.settings.newValue);
+    if (getLocale() !== locale) return void reopen();
     settings = normalizeSettings(changes.settings.newValue);
     applyAppearance(settings);
     renderModel();
@@ -1294,8 +1377,8 @@ if (!floating) {
   chrome.tabs.onActivated.addListener((info) => {
     if (info.windowId === windowId) soon();
   });
-  chrome.tabs.onUpdated.addListener((_id, change, t) => {
-    if (t.active && t.windowId === windowId && (change.url || change.title || change.status === "complete"))
+  chrome.tabs.onUpdated.addListener((_id, change, x) => {
+    if (x.active && x.windowId === windowId && (change.url || change.title || change.status === "complete"))
       soon();
   });
   const publish = () => {
@@ -1314,18 +1397,17 @@ if (!floating) {
 }
 
 async function init() {
-  settings = await loadSettings();
   applyAppearance(settings);
   if (!floating) {
     windowId ??= (await chrome.windows.getCurrent()).id;
-    const t = await activeTab(windowId).catch(() => undefined);
-    tab = t ? { id: t.id, title: t.title || "", url: t.url || "" } : undefined;
+    const current = await activeTab(windowId).catch(() => undefined);
+    tab = current ? { id: current.id, title: current.title || "", url: current.url || "" } : undefined;
   }
   setConversation(fresh());
   setupQuoting();
   if (floating) {
     setupFloatChrome();
-    if (!sessionId) throw new Error("缺少选区会话标识，请重新划词。");
+    if (!sessionId) throw new Error(t("app.noSession"));
     bound = await send<FloatSession>({ type: "CLAIM_FLOAT", id: sessionId });
     windowId = bound.windowId;
     const key = "panel:" + bound.windowId;

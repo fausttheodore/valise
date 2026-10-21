@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import {
   type Attachment,
   type Message,
@@ -32,8 +33,7 @@ export function messageTokens(m: Message) {
   return n;
 }
 export function chunkText(text: string, budget: number): string[] {
-  if (budget < 64)
-    throw new Error("剩余上下文预算不足，请减少历史或输出预留。");
+  if (budget < 64) throw new Error(t("context.lowBudget"));
   const result: string[] = [];
   let current = "";
   for (const block of text.split(/\n\s*\n/)) {
@@ -69,10 +69,7 @@ export function trimHistory(messages: Message[], budget: number): Message[] {
   const size = () => selected.reduce((n, m) => n + messageTokens(m), 0);
   while (size() > budget) {
     const next = selected.findIndex((m, i) => i > 0 && m.role === "user");
-    if (next < 0)
-      throw new Error(
-        "当前问题超过上下文预算；请缩短问题或提高已核实的模型上下文上限。",
-      );
+    if (next < 0) throw new Error(t("context.questionTooLong"));
     selected = selected.slice(next);
   }
   return selected;
@@ -121,7 +118,7 @@ export function retrieve(text: string, query: string, budget: number) {
     content: chosen
       .map((x) => `[片段 ${x.index + 1}/${chunks.length}]\n${x.text}`)
       .join("\n\n"),
-    coverage: `检索 ${chosen.length}/${chunks.length} 个片段，非全文`,
+    coverage: t("context.coverage", { chosen: chosen.length, total: chunks.length }),
     indices: chosen.map((x) => x.index),
   };
 }
@@ -129,10 +126,10 @@ export function contextText(page: PageSnapshot | undefined, mode: ContextMode) {
   if (mode === "none") return "";
   if (!page || page.status !== "loaded")
     throw new Error(
-      page?.warnings.join("；") || "未能读取网页；可关闭网页模式或粘贴正文。",
+      page?.warnings.join(t("common.separator")) || t("context.unreadable"),
     );
   if (mode.includes("selection") && !page.selection?.text)
-    throw new Error("没有当前页面的有效选区，请重新选择。");
+    throw new Error(t("context.noSelection"));
   if (mode === "selection") return `选区：\n${page.selection!.text}`;
   return (
     (mode === "selection-page"
