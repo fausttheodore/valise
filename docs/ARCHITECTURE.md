@@ -1,6 +1,6 @@
 # Valise 架构与能力说明
 
-面向维护者：这个扩展做什么、由哪些部分组成、数据怎么流动、有哪些约束。用户使用说明见 [README](../README.md)，每次改动见 [CHANGELOG](../CHANGELOG.md)。
+面向维护者：这个扩展做什么、由哪些部分组成、数据怎么流动、有哪些约束。用户使用说明见 [README](../README.md)，版本变更见 [CHANGELOG](../CHANGELOG.md)。
 
 ## 1. 定位
 
@@ -145,18 +145,17 @@ valise/
 ├─ scripts/           licenses.mjs（收集依赖许可证）、package.mjs（打包 dist）
 ├─ public/            manifest、图标、许可证
 ├─ docs/ARCHITECTURE.md
-├─ CHANGELOG.md       工作日志
-└─ README.md
+├─ CHANGELOG.md       版本变更
+├─ CONTRIBUTING.md
+├─ README.md          英文说明
+└─ README.zh-CN.md    中文说明
 ```
 
 构建产物 `dist/`、`artifacts/` 和 `node_modules/` 不纳入版本管理（见 `.gitignore`）。签名私钥 `*.pem` 不得放进仓库或打包产物。
 
 ## 10. 约束与约定
 
-- **安全**：不输出、不提交、不打包 `*.pem`；日志和错误信息里的 key 用 `redact()` 遮盖；导出设置默认清空所有 key（含每个搜索服务的 key）；「高级参数」和「联网参数」不能覆盖认证、消息、流式字段。
-- **代码风格**：原生 DOM + `h()`；不写防御性兼容层；能力差异集中在 `config.ts capabilities()`，协议差异集中在 `providers.ts`。
-- **验证**：`npm run typecheck`、`npm test`；改界面后在浏览器里重新加载扩展实测。改协议或能力识别时，在 `tests/core.test.ts` 补映射测试；改公式规则时补渲染测试。
-- **日志**：每次改动在 `CHANGELOG.md` 顶部追加一条：日期、版本、做了什么、为什么、还需要验证什么。
+代码风格、测试、密钥处理和更新日志的约定见 [CONTRIBUTING.md](../CONTRIBUTING.md)。
 
 ## 11. 来源与协议依据
 

@@ -1,0 +1,8 @@
+{
+  "extDescription": {
+    "message": "用你自己的模型 API 读网页：针对当前页面、选中文字或多个标签页提问。"
+  },
+  "actionTitle": { "message": "打开 Valise" },
+  "cmdOpenPanel": { "message": "打开 Valise 侧栏" },
+  "cmdAskSelection": { "message": "用第一个划词动作处理选区" }
+}

@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Valise",
+  "default_locale": "en",
   "version": "0.1.0",
-  "description": "中文优先的网页阅读助手：读网页、@ 引用多个标签页、划词即问，用你自己的模型 API。",
+  "description": "__MSG_extDescription__",
   "minimum_chrome_version": "120",
   "permissions": [
     "storage",
@@ -16,7 +17,7 @@
   "background": { "service_worker": "background.js", "type": "module" },
   "side_panel": { "default_path": "panel.html" },
   "options_ui": { "page": "settings.html", "open_in_tab": true },
-  "action": { "default_title": "打开 Valise" },
+  "action": { "default_title": "__MSG_actionTitle__" },
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -25,11 +26,11 @@
   "commands": {
     "open-panel": {
       "suggested_key": { "default": "Ctrl+Shift+Y", "mac": "Command+Shift+Y" },
-      "description": "打开 Valise 侧栏"
+      "description": "__MSG_cmdOpenPanel__"
     },
     "ask-selection": {
       "suggested_key": { "default": "Alt+Shift+L" },
-      "description": "用第一个划词动作处理选区"
+      "description": "__MSG_cmdAskSelection__"
     }
   },
   "web_accessible_resources": [

@@ -1,42 +1,31 @@
-# 更新日志
+# Changelog
 
-每次改动追加在最上面：日期、版本、做了什么、为什么、还需要验证什么。架构说明见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
+All notable changes to Valise are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
-## 2026-10-19 · Valise 0.1.0（首个正式版）
+## [Unreleased]
 
-Valise 的第一个公开版本。它从 [Lumio](https://github.com/Iceeeeeeey/lumio) fork 起步，在本地以「Lumio Lite」为名迭代了几轮，这次改名并把版本号从 0.1.0 重新算起。
+### Changed
 
-**读网页**
-- 用 Defuddle 提取正文并转成 Markdown；四种模式：不读取 / 当前页正文 / 仅选区 / 选区 + 正文；发送前可预览实际提取的内容。
-- 超出上下文预算时按问题检索相关片段并标注「非全文」；「总结全文 / 翻译全文」逐段覆盖整页并报告进度。
-- 受保护页面、PDF、无权限、页面已跳转分别给出提示和一键处理。
+- README is now in English, with a Chinese translation in `README.zh-CN.md`.
 
-**@ 引用多个标签页**
-- 输入框里输入 `@` 弹出标签页列表（本窗口优先、最近使用优先，可筛选，方向键 + 回车选择）；也可以在 `+` 菜单选「引用其他标签页」。
-- 发送时与当前页并行读取，每个网页单独标注标题、URL 和提取时间；放不下时按大小比例分配预算。
-- 提问下方显示每个网页的来源标签，点开可看当时读取的快照；重新生成会重新读取。休眠的标签页会提示先切换过去加载，任何一个读取失败都不会调用模型。
+## [0.1.0] - 2026-10-19
 
-**引用回答追问**
-- 在回答里选中文字，点浮出的「引用」按钮，引用段落作为 Markdown 引用块放在问题前；可以引用多段。公式还原为 LaTeX 源码。侧栏和划词浮窗都能用。
+First public release. Valise began as a fork of [Lumio](https://github.com/Iceeeeeeey/lumio) and was developed privately as "Lumio Lite" before being renamed; version numbers restart at 0.1.0.
 
-**划词即问**
-- 选中网页文字后出现可自定义的动作（解释 / 翻译 / 总结……），浮窗就地流式回答；浮窗可拖动、可从四边四角缩放（宽度会被记住）、能追问、能一键转入侧栏。
+### Added
 
-**模型与联网**
-- OpenAI 兼容 / Gemini 原生两种协议，流式输出，三级超时与取消；按模型提供合法的思考参数，思考摘要折叠显示。
-- 「按需搜索」优先用模型自带联网（Gemini Google 搜索、OpenRouter、通义、智谱、Perplexity 等），没有时由模型调用搜索服务：Tavily / Exa / Brave / Jina / 博查 / SearXNG。也可以「先搜索再回答」。
-- 每条回答显示 token 用量；输入框旁的圆环显示会话占上下文预算的比例。
+- Page context: extract the current tab as Markdown with Defuddle; send the full page, the selection, both, or nothing; preview before sending.
+- Long pages: retrieve relevant passages when the page exceeds the context budget; summarize or translate the whole page chunk by chunk.
+- `@` mentions: reference other open tabs; each page is labeled with title, URL and extraction time, and the budget is split by page size.
+- Quote and follow up on part of an answer, in both the side panel and the selection popup.
+- Selection toolbar with customizable actions and a movable, resizable floating window.
+- OpenAI-compatible and Gemini protocols with streaming, timeouts and cancellation; per-model thinking parameters.
+- Web search: built-in search for supported providers, or Tavily, Exa, Brave, Jina, Bocha and SearXNG via tool calling or search-first mode.
+- KaTeX rendering with physics, siunitx, upgreek, unicode-math and mhchem commands; formulas are extracted before Markdown parsing.
+- Token usage per answer and a context-usage indicator.
+- Attachments: images, PDFs, text and code files, visible-area screenshots.
+- Local conversation history in IndexedDB with search, rename and Markdown export.
+- Settings with provider presets, model list, capability overrides and import/export that omits keys by default.
 
-**公式与 Markdown**
-- 公式在 Markdown 解析之前抽出，表格里的 `|`、公式里的 `_` `*` `\\` 不会被拆坏；支持 `$…$`、`$$…$$`、`\(…\)`、`\[…\]`、裸 `\begin{align}`、` ```math `。
-- 补齐 physics、siunitx、upgreek、unicode-math 常用命令，接入 mhchem（`\ce`、`\pu`）。渲染不了的命令以灰底源码显示并说明原因，不再是一片红字。
-- 自动识别链接；保留 `<br>` `<sup>` `<sub>` `<kbd>` `<mark>` 等常用标签，其余 HTML 按文本显示。
-
-**其他**
-- 附件：图片、PDF、文本 / 代码文件，截取可见区域，附加当前打开的 PDF。
-- 历史会话保存在本机 IndexedDB，可搜索、改名、导出 Markdown；长会话向上分页加载，有提问导航。
-- 设置页：服务商预设、模型列表、能力声明、外观实时预览、导入导出（默认清空 key）。
-
-**验证**
-- `npm ci`、`npm test`（6 个文件 59 项）、`npm run typecheck`、`npm run build`、`npm run package` 均通过。
-- 还需要更多真实使用：@ 选择器配合中文输入法；引用 3 个以上网页时的预算分配；各家服务商的自带联网与来源显示。
+[Unreleased]: https://github.com/fausttheodore/valise/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/fausttheodore/valise/releases/tag/v0.1.0

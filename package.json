@@ -1,7 +1,7 @@
 {
   "name": "valise",
   "version": "0.1.0",
-  "description": "Browser side-panel reading assistant: read pages, ask about selections, chat with your own models.",
+  "description": "Read web pages with your own LLM: ask about the page, a selection, or several tabs.",
   "private": true,
   "type": "module",
   "engines": {

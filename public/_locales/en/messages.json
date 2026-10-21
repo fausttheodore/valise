@@ -1,0 +1,10 @@
+{
+  "extDescription": {
+    "message": "Read web pages with your own LLM: ask about the page, a selection, or several tabs. Bring your own API key."
+  },
+  "actionTitle": { "message": "Open Valise" },
+  "cmdOpenPanel": { "message": "Open the Valise side panel" },
+  "cmdAskSelection": {
+    "message": "Run the first selection action on the selected text"
+  }
+}
