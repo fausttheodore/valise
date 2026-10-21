@@ -1,178 +1,186 @@
-# Valise 架构与能力说明
+# Valise architecture
 
-面向维护者：这个扩展做什么、由哪些部分组成、数据怎么流动、有哪些约束。用户使用说明见 [README](../README.md)，版本变更见 [CHANGELOG](../CHANGELOG.md)。
+For maintainers: what the extension does, what it is made of, how data flows, and which constraints apply. For usage, see the [README](../README.md); for version changes, see the [CHANGELOG](../CHANGELOG.md).
 
-## 1. 定位
+## 1. Scope
 
-浏览器侧栏里的中文阅读助手：读取当前网页、划词即问、和自己接入的模型聊天。
+A reading assistant in the browser side panel: read the current page, ask about a selection, and chat with models the user connects.
 
-- **自带 key**：直接从浏览器调用用户配置的接口（OpenAI 兼容 / Gemini 原生），没有中转服务器。
-- **轻量**：MV3 + TypeScript + Vite + 原生 DOM，无 UI 框架；不做 embedding、本地模型、MCP、云同步。
-- **如实**：上下文被截断、只用了检索片段、搜索没执行、输出达到上限，都会在回答下方写明。
+- **Bring your own key.** The browser calls the endpoints the user configures (OpenAI-compatible or Gemini native). There is no relay server.
+- **Small.** MV3, TypeScript, Vite and plain DOM, no UI framework. No embeddings, local models, MCP or cloud sync.
+- **Honest output.** When context was trimmed, only retrieved passages were used, a search did not run, or output hit its limit, the answer says so below the text.
 
-## 2. 需求与能力清单
+## 2. Features
 
-| 能力 | 说明 | 主要代码 |
+| Feature | Description | Main code |
 | --- | --- | --- |
-| 网页上下文 | 不读取 / 当前页正文 / 仅选区 / 选区 + 正文；Defuddle 提取为 Markdown；可预览、重新读取 | `extract.ts` `context.ts` `background.ts` |
-| @ 引用标签页 | 输入 `@` 弹出标签页选择器（本窗口优先、最近使用优先）；被引用的标签页在发送时并行读取，与当前页一起作为资料，各自标注来源 | `composer.ts` `app.ts` `runner.ts` |
-| 引用回答 | 在回答中选中文字 →「引用」→ 以 Markdown 引用块放在问题前；公式还原为 LaTeX | `app.ts` `render.ts quoteText()` |
-| 长文处理 | 超出预算时按关键词检索片段并标注「非全文」；多个网页按大小比例分配预算、各自检索；全文总结 / 翻译逐段调用并报告进度 | `context.ts` `runner.ts` |
-| 多模型配置 | 多套接口 / key / 模型，侧栏随时切换；按模型名识别思考参数、采样参数、图片 / PDF / 工具 / 自带联网能力，可手动声明 | `config.ts` `settings.ts` |
-| 流式输出 | SSE 真流式；首响应 / 空闲 / 总时长三级超时；停止即中止网络请求，保留已收到内容 | `providers.ts` `request.ts` |
-| 思考 | OpenAI `reasoning_effort`、Gemini `thinkingLevel` / `thinkingBudget`；思考摘要折叠显示 | `config.ts` `providers.ts` `render.ts` |
-| 联网搜索 | 三种模式：关闭 / 按需搜索 / 先搜索再回答，详见 §5 | `runner.ts` `search.ts` `providers.ts` |
-| token 用量 | 每条回答显示输入 / 输出 token；输入框旁的圆环显示上下文占用，点开看本会话累计 | `providers.ts` `app.ts` `composer.ts` |
-| 划词 | 选中文字后出现工具栏；浮窗在选区旁回答，可拖动、拖边缘自由缩放、追问、转入侧栏 | `content.ts` `app.ts`（浮窗模式） |
-| 附件 | 图片、PDF、文本 / 代码文件；截取可见区域；附加当前 PDF | `attachments.ts` |
-| 渲染 | Markdown、KaTeX 公式（可复制 LaTeX，详见 §6）、代码高亮、来源卡片、Gemini 搜索建议 | `render.ts` `math.ts` |
-| 历史 | IndexedDB 保存会话与网页快照；历史抽屉、改名、导出 Markdown；长会话窗口化渲染与提问导航 | `storage.ts` `history.ts` `thread.ts` |
-| 设置 | 自动保存；模型、搜索、提示词、划词动作、外观、网站、数据；导入导出默认不含 key | `settings.ts` |
+| Page context | Don't read / current page / selection only / selection + page. Defuddle extracts Markdown. Preview and re-read are available. | `extract.ts` `context.ts` `background.ts` |
+| `@` tab mentions | Typing `@` opens a tab picker (this window first, most recently used first). Referenced tabs are read in parallel when the message is sent and are added as material next to the current page, each with its own source label. | `composer.ts` `app.ts` `runner.ts` |
+| Quoting answers | Select text in an answer → Quote → it is placed before the question as a Markdown blockquote. Formulas are turned back into LaTeX. | `app.ts` `render.ts quoteText()` |
+| Long pages | When a page exceeds the budget, keyword retrieval picks passages and the answer is marked "not the full text". Several pages share the budget in proportion to their size and are retrieved separately. Page summaries and translations call the model once per part and report progress. | `context.ts` `runner.ts` |
+| Model profiles | Several endpoints, keys and models, switchable in the side panel. Thinking parameters, sampling parameters and image / PDF / tool / built-in search support are detected from the model name and can be declared by hand. | `config.ts` `settings.ts` |
+| Streaming | Real SSE streaming. First-response, idle and total timeouts. Stopping aborts the network request and keeps the text received so far. | `providers.ts` `request.ts` |
+| Thinking | OpenAI `reasoning_effort`, Gemini `thinkingLevel` / `thinkingBudget`. Thought summaries are shown collapsed. | `config.ts` `providers.ts` `render.ts` |
+| Web search | Three modes: off, search when needed, search first. See §5. | `runner.ts` `search.ts` `providers.ts` |
+| Token usage | Input and output tokens per answer. A ring next to the input shows context occupancy; clicking it shows totals for the conversation. | `providers.ts` `app.ts` `composer.ts` |
+| Selection actions | Selecting text shows a toolbar. A floating window answers next to the selection and can be dragged, resized from any edge, followed up in, or moved to the side panel. | `content.ts` `app.ts` (float mode) |
+| Attachments | Images, PDFs, text and code files; visible-area screenshots; the PDF open in the current tab. | `attachments.ts` |
+| Rendering | Markdown, KaTeX (copyable LaTeX, see §6), code highlighting, source cards, Gemini search suggestions. | `render.ts` `math.ts` |
+| History | Conversations and page snapshots in IndexedDB. History drawer, rename, Markdown export. Long conversations render in a window, with a question navigator. | `storage.ts` `history.ts` `thread.ts` |
+| Settings | Saved automatically. Models, search, prompts, selection actions, appearance (including interface language), sites, data. Import and export omit keys by default. | `settings.ts` |
+| Interface language | English and Simplified Chinese, see §8. | `i18n/` |
 
-## 3. 运行上下文
+## 3. Runtime contexts
 
 ```
-┌────────────── 网页（不可信） ──────────────┐
-│ content.js：划词工具栏 + 浮窗外框（closed shadow DOM）│
-│   └─ <iframe floating.html>  ← 扩展页面，可信      │
-└──────────────────┬──────────────────────┘
-                   │ runtime 消息（仅 CONTENT_PREFS / CREATE_FLOAT / FLOAT_WIDTH）
-┌──────────────────▼──────────────────────┐
-│ background.js（service worker）：短消息路由、读页、权限、右键菜单 │
-└──────────────────▲──────────────────────┘
-                   │ runtime 消息
-┌──────────────────┴──────────────────────┐
-│ panel.html / floating.html（app.ts）：会话、请求、渲染   │──→ 模型 API / 搜索 API
-│ settings.html（settings.ts）                       │
-└─────────────────────────────────────────┘
+┌──────────────────── web page (untrusted) ────────────────────┐
+│ content.js: selection toolbar + float frame (closed shadow DOM) │
+│   └─ <iframe floating.html>  ← extension page, trusted         │
+└───────────────────────────────┬──────────────────────────────┘
+                                │ runtime messages (CONTENT_PREFS / CREATE_FLOAT / FLOAT_WIDTH only)
+┌───────────────────────────────▼──────────────────────────────┐
+│ background.js (service worker): message routing, page reads,  │
+│ permissions, context menu                                     │
+└───────────────────────────────▲──────────────────────────────┘
+                                │ runtime messages
+┌───────────────────────────────┴──────────────────────────────┐
+│ panel.html / floating.html (app.ts): conversations, requests, │──→ model APIs / search APIs
+│ rendering                                                     │
+│ settings.html (settings.ts)                                   │
+└───────────────────────────────────────────────────────────────┘
 ```
 
-- **长请求只在可见的扩展页面里跑**（侧栏或浮窗）。worker 只做短任务，不靠轮询保活。
-- **密钥只在可信上下文**：`chrome.storage` 设为 `TRUSTED_CONTEXTS`，内容脚本读不到；内容脚本只拿到动作名称、图标和浮窗宽度。
-- **页面能触发的消息只有三种**：取划词偏好、创建浮窗会话、保存浮窗宽度（会被夹在 320–960 px 之间）。其余消息都要求发送方是扩展页面。
-- 浮窗 iframe 与外框通过 `postMessage` 通信：iframe 报告「移动」和「期望高度」，外框负责定位、限制在视口内、拖边缘缩放。用户手动调整大小后，就不再随回答自动长高。
+- **Long requests run only in a visible extension page** (the side panel or the float). The worker handles short tasks and is not kept alive by polling.
+- **Keys stay in trusted contexts.** `chrome.storage` is set to `TRUSTED_CONTEXTS`, so content scripts can't read it. The content script receives only action names, icons, the float width and the resolved interface language.
+- **Pages can trigger three messages only:** read selection preferences, create a float session, save the float width (clamped to 320–960 px). Every other message requires the sender to be an extension page.
+- The float iframe and its frame talk through `postMessage`. The iframe reports moves and its preferred height; the frame positions it, keeps it inside the viewport and handles edge resizing. Once the user resizes it by hand, it stops growing with the answer.
 
-## 4. 一次提问的数据流
+## 4. Data flow of a question
 
-1. `app.ts submit()`：校验附件能力，创建 `RequestScope`（超时 + 中止）。
-2. `runner.ts runTurn()`：
-   1. 读取当前网页（`background.ts readPage` → `content.ts READ_DOM` → `extract.ts`），并行读取 @ 引用的其他标签页（与当前页相同的会跳过；任何一个读取失败就停止，不调用模型），全部保存快照；
-   2. 写入用户消息（`source` 是当前页，`refs` 是引用的标签页），按预算 `trimHistory` 截掉最早的轮次；
-   3. 「先搜索再回答」先调用 `search()`，再把结果作为参考资料附在提问里；
-   4. 网页正文：放得下就全文附上，放不下就 `retrieve()` 检索片段（多个网页按大小比例分预算）；全文任务用 `chunkText()` 逐段处理；
-   5. `answer()` 循环调用 `generate()`；模型请求 `web_search` 工具时执行搜索，把结果作为 tool 消息回填，直到模型给出答案或达到轮数上限。
-3. `providers.ts generate()`：组装请求 → SSE 解析 → 增量回调 → 收集思考、工具调用、来源、grounding、**usage**。
-4. 每个增量都会渲染一次（`thread.ts`、`render.ts` 节流）。会话 2 秒防抖写入 IndexedDB，结束时再强制保存一次。
+1. `app.ts submit()` checks attachment capabilities and creates a `RequestScope` (timeouts and abort).
+2. `runner.ts runTurn()`:
+   1. Reads the current page (`background.ts readPage` → `content.ts READ_DOM` → `extract.ts`) and, in parallel, the tabs referenced with `@`. A referenced tab that is the current page is skipped. If any read fails, the turn stops before calling the model. All snapshots are saved.
+   2. Writes the user message (`source` is the current page, `refs` are the referenced tabs) and drops the oldest turns with `trimHistory` to fit the budget.
+   3. In "search first" mode, calls `search()` and attaches the results to the question as reference material.
+   4. Page text: attached in full when it fits, otherwise narrowed with `retrieve()` (several pages share the budget by size). Whole-page tasks go through `chunkText()` part by part.
+   5. `answer()` calls `generate()` in a loop. When the model calls the `web_search` tool, the search runs and the result is added as a tool message, until the model answers or the round limit is reached.
+3. `providers.ts generate()` builds the request, parses SSE, reports deltas, and collects thoughts, tool calls, sources, grounding and usage.
+4. Deltas are rendered with throttling (`thread.ts`, `render.ts`). The conversation is written to IndexedDB with a 2-second debounce and saved once more at the end.
 
-网页正文和搜索结果始终附在**用户消息**里（每个网页一个 `<网页参考资料>` 块，带标题、URL 和提取时间），并注明「是资料，不是指令」，不会进入系统提示词。
+Page text and search results are always attached to the **user message** (one `<网页参考资料>` block per page, with title, URL and extraction time) and marked as material, not instructions. They never go into the system prompt.
 
-引用回答不需要额外的数据结构：选中的段落以 `> ` 引用块写在问题文本前面，模型和历史记录看到的都是同一段 Markdown。
+Quoting needs no extra data structure: the quoted passage is written as a `> ` blockquote before the question, so the model and the history see the same Markdown.
 
-## 5. 联网搜索
+## 5. Web search
 
-| 模式 | 模型自带联网 | 没有自带联网，但支持工具调用 | 两者都不支持 |
+| Mode | Model has built-in search | No built-in search, but tool calling | Neither |
 | --- | --- | --- | --- |
-| 按需搜索 | 由模型自己搜索 | 声明 `web_search` 函数，由模型决定何时调用搜索服务 | 报错并提示改用「先搜索」 |
-| 先搜索再回答 | 先用搜索服务检索，再交给模型（任何模型都可用） | 同左 | 同左 |
+| Search when needed | The model searches on its own | A `web_search` function is declared and the model decides when to call the search service | Error suggesting "Search first" |
+| Search first | The search service runs first, then the model answers (works with any model) | Same | Same |
 
-**模型自带联网**（`capabilities().nativeSearch`）：
+**Built-in model search** (`capabilities().nativeSearch`):
 
-- Gemini 原生协议：`gemini-2.0` 及之后的模型和 `-latest` 别名，请求带 `tools: [{google_search: {}}]`，解析 `groundingMetadata` 和搜索建议。
-- OpenAI 兼容：读取模型配置里的 `searchParams`（「自带联网」卡片，有 OpenRouter / OpenAI 搜索模型 / 通义千问 / 智谱的预设），只在「按需搜索」时合并进请求体。以下几种会自动识别：OpenAI 的 `*search*` 模型、`api.perplexity.ai`、OpenRouter 的 `:online` 模型。
-- 来源解析兼容这些格式：`delta.annotations[].url_citation`（OpenAI / OpenRouter）、`citations` / `search_results`（Perplexity）、`search_info.search_results`（通义）、`web_search`（智谱）。
+- Gemini native protocol: `gemini-2.0` and later models and the `-latest` aliases. Requests carry `tools: [{google_search: {}}]`; `groundingMetadata` and search suggestions are parsed.
+- OpenAI-compatible: the profile's `searchParams` (the "Built-in search" card, with presets for OpenRouter, OpenAI search models, Qwen and Zhipu) are merged into the request body only in "search when needed" mode. Detected automatically: OpenAI `*search*` models, `api.perplexity.ai`, OpenRouter `:online` models.
+- Sources are read from `delta.annotations[].url_citation` (OpenAI / OpenRouter), `citations` / `search_results` (Perplexity), `search_info.search_results` (Qwen) and `web_search` (Zhipu).
 
-**搜索服务**（`search.ts`，用表驱动的适配器，新增服务只需加一项）：Tavily、Exa、Brave、Jina、博查、SearXNG。每个服务的地址和 key 分别保存在 `settings.search.services`，切换服务不会丢失 key；`settings.search.provider` 是当前选中的服务。
+**Search services** (`search.ts`, a table of adapters; a new service is one more entry): Tavily, Exa, Brave, Jina, Bocha, SearXNG. Each service's URL and key are stored in `settings.search.services`, so switching services keeps every key. `settings.search.provider` is the selected service.
 
-## 6. Markdown 与公式渲染
+## 6. Markdown and math rendering
 
-`render.ts renderMarkdown()` 分三步：
+`render.ts renderMarkdown()` works in three steps:
 
-1. **先抽出公式**（`math.ts extractMath()`）：跳过代码块和行内代码，把 `$…$`、`$$…$$`、`\(…\)`、`\[…\]`、裸 `\begin{equation|align|gather|…}` 和 ` ```math ` 代码块换成私有区占位符（`U+E000 n U+E001`），再交给 markdown-it。这样公式里的 `_` `*` `\\` 和表格里的 `|` 都不会被 Markdown 解析。`<br>` `<sup>` `<sub>` 等少数无害标签也以同样方式保留（markdown-it 仍是 `html: false`）。
-2. **markdown-it 渲染**：开启 linkify（只识别 `http(s)://` 和 `www.`）；单独一段的块级公式替换整个 `<p>`，其余占位符原位替换为 KaTeX 输出。
-3. **DOMPurify 清理**整段 HTML。
+1. **Extract formulas first** (`math.ts extractMath()`). Code blocks and inline code are skipped. `$…$`, `$$…$$`, `\(…\)`, `\[…\]`, bare `\begin{equation|align|gather|…}` and ` ```math ` blocks are replaced with private-use placeholders (`U+E000 n U+E001`) before markdown-it runs, so `_`, `*` and `\\` in formulas and `|` in tables are not parsed as Markdown. A few harmless tags such as `<br>`, `<sup>` and `<sub>` are kept the same way (markdown-it still runs with `html: false`).
+2. **Render with markdown-it.** Linkify is on and recognizes only `http(s)://` and `www.`. A block formula alone in a paragraph replaces the `<p>`; other placeholders are replaced in place with KaTeX output.
+3. **Sanitize** the whole HTML with DOMPurify.
 
-判定规则：`$` 两侧紧贴非空白字符才算公式，前面是数字或后面紧跟数字的视为货币（`$5 和 $10`）；`\$` 是转义的美元符；`\[1\]` 这类纯数字被当作转义的引用标号；独占一行的 `$$`/`\[` 是块级公式，嵌在句子中的按行间样式行内显示。
+Rules: `$` counts as a delimiter only when it touches non-space characters on the inside; a `$` before a digit or right after one is currency (`$5 and $10`); `\$` is an escaped dollar sign; `\[1\]` with only digits is an escaped citation number; `$$` or `\[` on its own line is a block formula, and inside a sentence it is rendered inline in display style.
 
-KaTeX 以 `throwOnError: true` 调用，失败时显示灰底的 LaTeX 源码，悬停显示原因（以前是一片红字）。`math.ts` 的 `MACROS` 补齐了模型常写、KaTeX 没有的命令：physics（`\abs` `\norm` `\dv` `\pdv` `\vb` `\expval` `\comm` …）、siunitx（`\SI` `\si` `\qty` `\unit` 与常用单位、词头）、upgreek（`\upsigma` …）、unicode-math（`\symbf` …）和 `\argmax` 等算子；化学式由 KaTeX 官方的 mhchem 扩展（`\ce` `\pu`）提供。新增命令只需在 `MACROS` 里加一项。
+KaTeX runs with `throwOnError: true`. A formula that fails is shown as gray LaTeX source, with the reason on hover. `MACROS` in `math.ts` adds commands models often write that KaTeX lacks: physics (`\abs` `\norm` `\dv` `\pdv` `\vb` `\expval` `\comm` …), siunitx (`\SI` `\si` `\qty` `\unit` with common units and prefixes), upgreek (`\upsigma` …), unicode-math (`\symbf` …) and operators such as `\argmax`. Chemistry (`\ce` `\pu`) comes from KaTeX's mhchem extension. A new command is one more entry in `MACROS`.
 
-每个公式外层带 `data-tex`，复制按钮和「引用回答」都从这里取回 LaTeX 源码。
+Each formula's wrapper carries `data-tex`; the copy buttons and quoting read the LaTeX source from it.
 
-## 7. token 用量与上下文占用
+## 7. Token usage and context occupancy
 
-- OpenAI 兼容请求带 `stream_options: {include_usage: true}`，从最后一个 chunk 读取 `usage`，包括缓存命中（`prompt_tokens_details.cached_tokens` / DeepSeek 的 `prompt_cache_hit_tokens`）和思考 token；Gemini 读取 `usageMetadata`，思考 token 计入输出。
-- 每次模型调用的用量存进对应助手消息的 `usage` 字段，随会话持久化。
-- 上下文占用 = 最近一次调用的实际输入 + 输出，除以模型配置里的「上下文预算」；服务商还没返回用量时，按字符数估算（`estimateTokens`，显示 ≈）。70% 以上显示琥珀色，90% 以上显示红色。
+- OpenAI-compatible requests send `stream_options: {include_usage: true}` and read `usage` from the last chunk, including cache hits (`prompt_tokens_details.cached_tokens`, or DeepSeek's `prompt_cache_hit_tokens`) and reasoning tokens. Gemini reads `usageMetadata`; thinking tokens count as output.
+- Each model call's usage is stored in the `usage` field of its assistant message and persists with the conversation.
+- Occupancy is the last call's actual input + output divided by the profile's context budget. Before the provider reports usage, it is estimated from the character count (`estimateTokens`, shown with ≈). Above 70% the ring turns amber, above 90% red.
 
-## 8. 存储
+## 8. Interface language
 
-| 位置 | 内容 |
+- `src/i18n/zh-CN.ts` is the reference dictionary. `src/i18n/en.ts` is typed against its keys, so a missing or extra key fails `npm run typecheck`. Keys are flat strings grouped by module, such as `settings.models` or `composer.send`.
+- `src/i18n/index.ts` exports `t(key, params)` (placeholders are written `{name}`), `setLocale()`, `getLocale()`, `resolveLocale()`, `formatNumber()` and `translations()`.
+- The language comes from `settings.uiLanguage` (`"auto" | "en" | "zh-CN"`, default `"auto"`). `auto` uses `chrome.i18n.getUILanguage()`: any `zh*` locale maps to `zh-CN`, everything else to `en`. `loadSettings()` sets the locale before `normalizeSettings()` runs, so every entry point (panel, float, settings, worker) uses it from the first label it builds. The panel and settings page load settings with top-level `await` before building the UI; the HTML `lang` attribute is set at runtime.
+- When the language changes, the settings page redraws, the side panel reloads and reopens the current conversation, and the worker re-registers its context menu. An open float keeps its language until it closes.
+- The content script receives the resolved language through `CONTENT_PREFS`; storage access is not widened. Its two strings live in `content.ts` so the dictionaries are not injected into web pages.
+- The default system prompt and default selection actions come from the dictionary. In `normalizeSettings()`, a saved prompt or action name/template that equals the default in any language is treated as unedited and replaced with the current language's default; edited text is kept.
+- Text that is part of the prompt structure sent to the model stays in Chinese for now: the `<网页参考资料>` wrapper and its note in `context.ts`, the per-part instructions in `runner.ts`, and the attachment wrappers and `web_search` tool description in `providers.ts`.
+- Dates and numbers are formatted with the current locale. The extension name, description and shortcut descriptions in the manifest use Chrome's `_locales/` and follow the browser language.
+
+## 9. Storage
+
+| Location | Contents |
 | --- | --- |
-| `chrome.storage.local.settings` | 设置（含 key），仅可信上下文可读 |
-| `chrome.storage.session` | 浮窗会话、侧栏可见性、待转入侧栏的会话 |
-| IndexedDB `conversations` | 会话与消息（含附件、来源、引用的标签页、usage） |
-| IndexedDB `snapshots` | 网页正文快照（当前页和 @ 引用的标签页各一份），最多 20 份、约 10 MiB，从最旧的开始淘汰 |
+| `chrome.storage.local.settings` | Settings, including keys; readable only from trusted contexts |
+| `chrome.storage.session` | Float sessions, side panel visibility, a conversation waiting to open in the side panel |
+| IndexedDB `conversations` | Conversations and messages (attachments, sources, referenced tabs, usage) |
+| IndexedDB `snapshots` | Page text snapshots (one per current page and per `@` tab), at most 20 or about 10 MiB, oldest removed first |
 
-设置迁移集中在 `normalizeSettings()`：只补字段、不凭空创建配置。例如早期单个 `search.apiKey` 会被迁移到 `search.services.tavily`。
+Settings migration lives in `normalizeSettings()`: it only fills in fields and never invents profiles. For example, an early single `search.apiKey` moves to `search.services.tavily`.
 
-## 9. 目录
+## 10. Layout
 
 ```
 valise/
 ├─ src/
-│  ├─ app.ts          侧栏与浮窗的编排（会话、菜单、提交、@ 引用、引用回答、用量）
-│  ├─ thread.ts       消息列表：窗口化渲染、向上加载、提问导航
-│  ├─ composer.ts     输入区：网页来源行、@ 选择器与标签、引用块、附件托盘、上下文圆环、模型 / 发送
-│  ├─ render.ts       Markdown / 代码 / 消息视图 / 来源 / 选区转文本
-│  ├─ math.ts         公式抽取、KaTeX 渲染与补充宏
-│  ├─ history.ts      历史抽屉
-│  ├─ settings.ts     设置页
-│  ├─ runner.ts       一轮问答：上下文、搜索、分块、工具循环
-│  ├─ providers.ts    协议组装、SSE 解析、usage 与来源
-│  ├─ search.ts       搜索服务适配器
-│  ├─ config.ts       默认值、迁移、能力识别、校验、导出
-│  ├─ context.ts      token 估算、裁剪、分块、检索
-│  ├─ request.ts      请求生命周期（超时 / 中止）
+│  ├─ app.ts          side panel and float: conversations, menus, submit, @ mentions, quoting, usage
+│  ├─ thread.ts       message list: windowed rendering, loading older messages, question navigator
+│  ├─ composer.ts     input area: page source row, @ picker and chips, quotes, attachment tray, context ring, model / send
+│  ├─ render.ts       Markdown / code / message views / sources / selection to text
+│  ├─ math.ts         formula extraction, KaTeX rendering and extra macros
+│  ├─ history.ts      history drawer
+│  ├─ settings.ts     settings page
+│  ├─ runner.ts       one turn: context, search, chunking, tool loop
+│  ├─ providers.ts    request building, SSE parsing, usage and sources
+│  ├─ search.ts       search service adapters
+│  ├─ config.ts       defaults, migration, capability detection, validation, export
+│  ├─ context.ts      token estimate, trimming, chunking, retrieval
+│  ├─ request.ts      request lifecycle (timeouts / abort)
 │  ├─ extract.ts      Defuddle → Markdown
-│  ├─ attachments.ts  附件与截图
+│  ├─ attachments.ts  attachments and screenshots
 │  ├─ storage.ts      IndexedDB
-│  ├─ browser.ts      标签页 / 读页 / 权限辅助
-│  ├─ background.ts   service worker 路由
-│  ├─ content.ts      划词工具栏与浮窗外框
-│  ├─ ui.ts dom.ts icons.ts theme.ts   组件、DOM 工具、图标、外观
-│  ├─ types.ts        数据类型
+│  ├─ browser.ts      tab / page read / permission helpers
+│  ├─ background.ts   service worker routing
+│  ├─ content.ts      selection toolbar and float frame
+│  ├─ i18n/           interface dictionaries and t()
+│  ├─ ui.ts dom.ts icons.ts theme.ts   components, DOM helpers, icons, appearance
+│  ├─ types.ts        data types
 │  └─ style.css settings.css
-├─ tests/             vitest 单测 + mock-server.mjs（本机协议 mock）
-├─ scripts/           licenses.mjs（收集依赖许可证）、package.mjs（打包 dist）
-├─ public/            manifest、图标、许可证
+├─ tests/             vitest tests + mock-server.mjs (local protocol mock)
+├─ scripts/           licenses.mjs (collects dependency licenses), package.mjs (zips dist)
+├─ public/            manifest, _locales, icons, licenses
+├─ .github/workflows/ci.yml   checks on every push and pull request; releases on v* tags
 ├─ docs/ARCHITECTURE.md
-├─ CHANGELOG.md       版本变更
+├─ CHANGELOG.md       version changes
 ├─ CONTRIBUTING.md
-├─ README.md          英文说明
-└─ README.zh-CN.md    中文说明
+├─ README.md          English
+└─ README.zh-CN.md    Chinese
 ```
 
-构建产物 `dist/`、`artifacts/` 和 `node_modules/` 不纳入版本管理（见 `.gitignore`）。签名私钥 `*.pem` 不得放进仓库或打包产物。
+Build output (`dist/`, `artifacts/`) and `node_modules/` are not tracked (see `.gitignore`). Signing keys (`*.pem`) must never be in the repository or a package.
 
-## 10. 约束与约定
+## 11. Conventions
 
-代码风格、测试、密钥处理和更新日志的约定见 [CONTRIBUTING.md](../CONTRIBUTING.md)。
+Code style, tests, secret handling, the changelog and releasing are described in [CONTRIBUTING.md](../CONTRIBUTING.md).
 
-## 11. 来源与协议依据
+## 12. Sources and references
 
-| 来源 | 使用范围 |
+| Source | Used for |
 | --- | --- |
-| [Lumio](https://github.com/Iceeeeeeey/lumio) | 项目起点；`public/icons/` 图标与早期布局思路，MIT（版权声明保留在 `LICENSE`） |
-| [Page Assist](https://github.com/n4ze3m/page-assist/tree/c54bc6f41644e83b8130532814f7b62e01a47300) | `extract.ts` 的 Defuddle → Markdown 适配流程，MIT；「@ 引用标签页」只参考交互 |
-| Cerebr | 仅参考交互；GPL-3.0 源码未复制 |
+| [Lumio](https://github.com/Iceeeeeeey/lumio) | Starting point; the icons in `public/icons/` and early layout ideas, MIT (copyright notice kept in `LICENSE`) |
+| [Page Assist](https://github.com/n4ze3m/page-assist/tree/c54bc6f41644e83b8130532814f7b62e01a47300) | The Defuddle → Markdown pipeline in `extract.ts`, MIT; the `@` tab mention interaction only |
+| Cerebr | Interaction ideas only; no GPL-3.0 code was copied |
 
-协议文档：[Chrome service worker 生命周期](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle) · [OpenAI reasoning](https://developers.openai.com/api/docs/guides/reasoning) · [OpenAI web search](https://developers.openai.com/api/docs/guides/tools-web-search) · [Gemini thinking](https://ai.google.dev/gemini-api/docs/thinking) · [Gemini Google Search](https://ai.google.dev/gemini-api/docs/google-search) · [OpenRouter web search](https://openrouter.ai/docs/guides/features/web-search) · [Tavily](https://docs.tavily.com/documentation/api-reference/endpoint/search) · [Exa](https://exa.ai/docs/reference/search) · [Brave](https://api-dashboard.search.brave.com/app/documentation/web-search/get-started) · [Jina](https://jina.ai/reader/)
+Protocol documentation: [Chrome service worker lifecycle](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle) · [OpenAI reasoning](https://developers.openai.com/api/docs/guides/reasoning) · [OpenAI web search](https://developers.openai.com/api/docs/guides/tools-web-search) · [Gemini thinking](https://ai.google.dev/gemini-api/docs/thinking) · [Gemini Google Search](https://ai.google.dev/gemini-api/docs/google-search) · [OpenRouter web search](https://openrouter.ai/docs/guides/features/web-search) · [Tavily](https://docs.tavily.com/documentation/api-reference/endpoint/search) · [Exa](https://exa.ai/docs/reference/search) · [Brave](https://api-dashboard.search.brave.com/app/documentation/web-search/get-started) · [Jina](https://jina.ai/reader/)
 
-依赖许可证由 `scripts/licenses.mjs` 收集到 `public/licenses/`。
-
-## 12. 后续候选
-
-- 编辑并重发历史提问。
-- 浮窗内的附件、截图与 @ 引用。
-- @ 引用的标签页在输入框旁显示估算 token。
-- 会话级的默认「网页 / 搜索」模式（目前新会话默认读取当前页、关闭搜索）。
-- OpenAI Responses API 协议（可使用 OpenAI 官方的 `web_search` 工具，不局限于搜索专用模型）。
+Dependency licenses are collected into `public/licenses/` by `scripts/licenses.mjs`.
