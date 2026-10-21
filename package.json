@@ -1,6 +1,6 @@
 {
   "name": "valise",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Read web pages with your own LLM: ask about the page, a selection, or several tabs.",
   "private": true,
   "type": "module",

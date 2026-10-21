@@ -4,9 +4,20 @@ All notable changes to Valise are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-21
+
+### Added
+
+- English interface. Valise follows the browser language by default (Chinese for any Chinese locale, English otherwise); change it under Settings → Appearance → Interface language.
+- The default system prompt and selection actions follow the interface language. Prompts and actions you edited are kept as they are. "Translate page" translates into the interface language.
+- Extension name, description and shortcut descriptions are localized in English and Chinese.
+- CI checks every push and pull request, and pushing a `v*` tag publishes the release zip automatically.
+
 ### Changed
 
 - README is now in English, with a Chinese translation in `README.zh-CN.md`.
+- Documented tested platforms and browsers.
+- Dates and numbers are formatted for the interface language.
 
 ## [0.1.0] - 2026-10-19
 
@@ -27,5 +38,6 @@ First public release. Valise began as a fork of [Lumio](https://github.com/Iceee
 - Local conversation history in IndexedDB with search, rename and Markdown export.
 - Settings with provider presets, model list, capability overrides and import/export that omits keys by default.
 
-[Unreleased]: https://github.com/fausttheodore/valise/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/fausttheodore/valise/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/fausttheodore/valise/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/fausttheodore/valise/releases/tag/v0.1.0
