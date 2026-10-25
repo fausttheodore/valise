@@ -167,7 +167,8 @@ const TEXT: Record<Locale, { reload: string; frame: string }> = {
       const result = await message({ type: "CREATE_FLOAT", action, selection: selected });
       floatId = result.id;
       frame = document.createElement("iframe");
-      frame.title = TEXT[locale].frame;
+      // A 0.1.x service worker still running after the files were replaced sends no locale.
+      frame.title = (TEXT[locale] ?? TEXT.en).frame;
       frame.allow = "clipboard-write";
       frame.src =
         chrome.runtime.getURL("floating.html") + "?session=" + encodeURIComponent(floatId);

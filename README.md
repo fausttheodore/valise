@@ -4,7 +4,7 @@ English | [简体中文](README.zh-CN.md)
 
 Valise is a browser extension for reading with an LLM. Ask about the page you are on, a passage you selected, or several open tabs at once. It runs on your own API key and sends requests directly from the browser to the provider you choose. There is no backend and no account.
 
-<!-- TODO: add a screenshot or short GIF of the side panel and the selection popup here. -->
+<img src="docs/screenshot.png" alt="Valise side panel answering a question" width="337">
 
 ## Compatibility
 

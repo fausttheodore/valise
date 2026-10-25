@@ -4,6 +4,10 @@ All notable changes to Valise are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+
+- The selection popup no longer fails with "Cannot read properties of undefined (reading 'frame')" when the extension files were replaced but the extension was not reloaded.
+
 ## [0.2.0] - 2026-10-21
 
 ### Added
