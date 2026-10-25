@@ -4,6 +4,8 @@ All notable changes to Valise are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-24
+
 ### Fixed
 
 - The selection popup no longer fails with "Cannot read properties of undefined (reading 'frame')" when the extension files were replaced but the extension was not reloaded.
@@ -42,6 +44,7 @@ First public release. Valise began as a fork of [Lumio](https://github.com/Iceee
 - Local conversation history in IndexedDB with search, rename and Markdown export.
 - Settings with provider presets, model list, capability overrides and import/export that omits keys by default.
 
-[Unreleased]: https://github.com/fausttheodore/valise/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/fausttheodore/valise/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/fausttheodore/valise/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/fausttheodore/valise/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/fausttheodore/valise/releases/tag/v0.1.0
