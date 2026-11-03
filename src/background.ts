@@ -70,6 +70,10 @@ async function setup() {
       title: a.name,
       contexts: ["selection"],
     });
+  if (s.selectionEnabled) {
+    menu({ id: "separator", parentId: "valise", type: "separator", contexts: ["selection"] });
+    menu({ id: "hide", parentId: "valise", title: t("bg.hideOnSite"), contexts: ["selection"] });
+  }
   menu({ id: "panel", title: t("bg.openPanel"), contexts: ["page"] });
 }
 let chain: Promise<void> = Promise.resolve();
@@ -113,9 +117,20 @@ async function selectionAction(
     console.warn("Valise: could not run the selection action on this page", error);
   }
 }
+/** Adds the page's site to the excluded list and removes the toolbar already on it. */
+async function hideOnSite(tab: chrome.tabs.Tab | undefined, url: string) {
+  const host = /^https?:/.test(url) ? new URL(url).hostname.replace(/^www\./, "") : "";
+  if (!host) return;
+  const s = await loadSettings();
+  if (!s.blockedSites.includes(host))
+    await saveSettings({ ...s, blockedSites: [...s.blockedSites, host] });
+  if (tab?.id !== undefined)
+    await chrome.tabs.sendMessage(tab.id, { type: "DISPOSE" }).catch(() => {});
+}
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   const id = String(info.menuItemId);
-  if (id === "panel") {
+  if (id === "hide") void hideOnSite(tab, info.pageUrl || tab?.url || "");
+  else if (id === "panel") {
     if (tab?.id !== undefined) void chrome.sidePanel.open({ tabId: tab.id });
   } else if (id.startsWith("action:"))
     void selectionAction(tab, id.slice(7), info.frameId || 0);

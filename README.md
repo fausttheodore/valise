@@ -22,7 +22,7 @@ Other Chromium-based browsers with Manifest V3 side panel support (Chrome 120+, 
 - **Page context.** Extracts the main content of the current tab as Markdown (via Defuddle). You can send the full page, only the selection, both, or nothing, and preview exactly what will be sent.
 - **Multiple tabs.** Type `@` in the input box to add other open tabs. Each page is labeled with its title, URL and extraction time, so the model can compare or cross-check them.
 - **Long pages.** When a page doesn't fit the context budget, Valise retrieves the passages relevant to your question and marks the answer as based on excerpts. "Summarize page" and "Translate page" process the whole page chunk by chunk.
-- **Ask about a selection.** Select text on any page to get a small toolbar (explain, translate, summarize, or your own actions). The answer appears in a floating window next to the selection, which you can move, resize, follow up in, or move to the side panel.
+- **Ask about a selection.** Select text on any page to get a small toolbar (explain, translate, summarize, or your own actions). The answer appears in a floating window next to the selection, which you can move, resize, follow up in, or move to the side panel. To keep the toolbar off a site, add it under Settings → Selection actions → Excluded sites, or right-click selected text → Valise → Hide the toolbar on this site.
 - **Quote and follow up.** Select part of an answer and click Quote to ask about that passage specifically.
 - **Math rendering.** KaTeX with `$…$`, `$$…$$`, `\(…\)`, `\[…\]`, bare `\begin{align}` and ` ```math ` blocks. Common commands from physics, siunitx, upgreek and mhchem are supported. Math is extracted before Markdown parsing, so `|` in tables and `_` or `*` inside formulas don't break. Formulas KaTeX can't render are shown as source with the error on hover.
 - **Web search.** Uses the model's built-in search when it has one (Gemini, OpenRouter, Perplexity, Qwen, GLM and others). Otherwise the model can call a search API you configure: Tavily, Exa, Brave, Jina, Bocha or SearXNG. You can also have it search first and then answer, which works with any model.
@@ -96,6 +96,7 @@ Valise requests access to all sites so it can read tabs, take screenshots and sh
 - **A formula shows as gray source code.** KaTeX doesn't support one of its commands. Hover to see which. The source can still be copied.
 - **401 / 429 / 5xx errors.** Check the key, model name, base URL and quota. Text received before the error is kept, and failed requests are not retried automatically.
 - **The provider rejects a parameter.** Set thinking and sampling back to Default, or turn off the unsupported capability for that model.
+- **The side panel jumps back to the bottom while you scroll.** Before 0.2.2, scrolling during a long answer was pulled back to the bottom until the answer finished or you switched conversations. This is fixed and was verified in Brave. A similar report of the panel not scrolling *after* an answer finished could not be reproduced; 0.2.2 also stops a finished answer's reasoning block from scrolling on its own, which may be related. If it still happens, switch conversations to recover, and please report in Issues whether the answer was still streaming and whether the reasoning block was open.
 - **Errors on pages opened before an update.** Reload the page.
 
 ## Development
@@ -114,7 +115,7 @@ Built with TypeScript, Vite and plain DOM (no UI framework), plus markdown-it, K
 
 ## Credits
 
-Valise started as a fork of [Lumio](https://github.com/Iceeeeeeey/lumio) (MIT), which also provided the icons. The page extraction pipeline is adapted from [Page Assist](https://github.com/n4ze3m/page-assist) (MIT). Licenses for bundled dependencies are in [`public/licenses/`](public/licenses/).
+Valise started as a fork of [Lumio](https://github.com/Iceeeeeeey/lumio) (MIT). The page extraction pipeline is adapted from [Page Assist](https://github.com/n4ze3m/page-assist) (MIT). Licenses for bundled dependencies are in [`public/licenses/`](public/licenses/).
 
 The name is French for "suitcase".
 

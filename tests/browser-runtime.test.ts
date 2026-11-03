@@ -8,6 +8,7 @@ afterEach(() => {
 
 function setup(settings = defaultSettings(), uiLanguage = "zh-CN") {
   let listener!: (msg: any, sender: any, respond: (value: any) => void) => boolean;
+  let menuClick!: (info: any, tab: any) => void;
   const event = { addListener: vi.fn() };
   const session: Record<string, unknown> = {};
   const getFrame = vi.fn(async () => ({ documentId: "doc", url: "https://a.com/x" }));
@@ -16,6 +17,7 @@ function setup(settings = defaultSettings(), uiLanguage = "zh-CN") {
       local: {
         setAccessLevel: vi.fn(async () => {}),
         get: vi.fn(async () => ({ settings })),
+        set: vi.fn(async (value: { settings: typeof settings }) => (settings = value.settings)),
       },
       session: {
         setAccessLevel: vi.fn(async () => {}),
@@ -31,14 +33,19 @@ function setup(settings = defaultSettings(), uiLanguage = "zh-CN") {
     },
     i18n: { getUILanguage: () => uiLanguage },
     webNavigation: { getFrame },
-    contextMenus: { onClicked: event },
+    contextMenus: { onClicked: { addListener: (fn: typeof menuClick) => (menuClick = fn) } },
+    tabs: { sendMessage: vi.fn(async () => {}) },
     commands: { onCommand: event },
   });
   const call = async (msg: unknown, sender: unknown) => {
     await import("../src/background");
     return new Promise<any>((resolve) => listener(msg, sender, resolve));
   };
-  return { call, getFrame };
+  const click = async (info: unknown, tab: unknown) => {
+    await import("../src/background");
+    menuClick(info, tab);
+  };
+  return { call, click, getFrame, saved: () => settings };
 }
 const page = (url: string) => ({
   id: "ext",
@@ -59,6 +66,18 @@ it("hides the selection toolbar on blocked sites and their subdomains only", asy
   expect(open.data.enabled).toBe(true);
   expect(open.data.actions[0]).toEqual({ id: "explain", name: "解释", icon: "help" });
   expect(open.data.locale).toBe("zh-CN");
+});
+
+it("excludes the page's site from the context menu and removes the toolbar already there", async () => {
+  const { click, saved } = setup();
+  await click({ menuItemId: "hide", pageUrl: "https://www.docs.example.com/a" }, { id: 5 });
+  await vi.waitFor(() => expect(saved().blockedSites).toEqual(["docs.example.com"]));
+  await vi.waitFor(() =>
+    expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(5, { type: "DISPOSE" }),
+  );
+  await click({ menuItemId: "hide", pageUrl: "file:///tmp/a.html" }, { id: 6 });
+  await new Promise((r) => setTimeout(r, 0));
+  expect(saved().blockedSites).toEqual(["docs.example.com"]);
 });
 
 it("gives the content script the resolved interface language", async () => {

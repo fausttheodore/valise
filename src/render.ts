@@ -472,8 +472,12 @@ function assistantView(m: Message, hooks: ViewHooks): MessageView {
       .join("");
     thinking.hidden = !thoughts;
     if (thoughts !== lastThought) {
+      // While reasoning streams the box keeps showing the newest lines, unless the reader scrolled up in it.
+      const pinned =
+        thinkingBody.scrollHeight - thinkingBody.scrollTop - thinkingBody.clientHeight < 24;
       lastThought = thoughts;
       thinkingBody.textContent = thoughts;
+      if (pinned) thinkingBody.scrollTop = thinkingBody.scrollHeight;
     }
     thinkingLabel.textContent = t(busy && !text ? "render.thinkingBusy" : "render.thinking");
     if (!touched) thinking.open = busy && !text && !!thoughts;

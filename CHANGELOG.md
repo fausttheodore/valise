@@ -4,6 +4,22 @@ All notable changes to Valise are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-03
+
+### Added
+
+- Right-click selected text → Valise → Hide the toolbar on this site adds the site to the excluded list and removes the toolbar from the page at once.
+
+### Changed
+
+- New extension icon.
+- The toolbar switch and the excluded sites list moved from Settings → Sites to Settings → Selection actions. Sites now only shows site access.
+
+### Fixed
+
+- Scrolling while an answer streams is no longer pulled back to the bottom. Before, small scrolls (and larger ones that crossed a snap) jumped back until the answer finished or you switched conversations. Following resumes when you scroll back to the bottom or click ↓.
+- A finished answer's reasoning block opens at full height instead of being a separate scroll box, so the wheel always scrolls the conversation.
+
 ## [0.2.1] - 2026-10-24
 
 ### Fixed
@@ -44,7 +60,8 @@ First public release. Valise began as a fork of [Lumio](https://github.com/Iceee
 - Local conversation history in IndexedDB with search, rename and Markdown export.
 - Settings with provider presets, model list, capability overrides and import/export that omits keys by default.
 
-[Unreleased]: https://github.com/fausttheodore/valise/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/fausttheodore/valise/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/fausttheodore/valise/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/fausttheodore/valise/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/fausttheodore/valise/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/fausttheodore/valise/releases/tag/v0.1.0

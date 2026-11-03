@@ -23,11 +23,11 @@ A reading assistant in the browser side panel: read the current page, ask about 
 | Thinking | OpenAI `reasoning_effort`, Gemini `thinkingLevel` / `thinkingBudget`. Thought summaries are shown collapsed. | `config.ts` `providers.ts` `render.ts` |
 | Web search | Three modes: off, search when needed, search first. See §5. | `runner.ts` `search.ts` `providers.ts` |
 | Token usage | Input and output tokens per answer. A ring next to the input shows context occupancy; clicking it shows totals for the conversation. | `providers.ts` `app.ts` `composer.ts` |
-| Selection actions | Selecting text shows a toolbar. A floating window answers next to the selection and can be dragged, resized from any edge, followed up in, or moved to the side panel. | `content.ts` `app.ts` (float mode) |
+| Selection actions | Selecting text shows a toolbar. A floating window answers next to the selection and can be dragged, resized from any edge, followed up in, or moved to the side panel. Excluded sites get no toolbar; the context menu can add the current site. | `content.ts` `app.ts` (float mode) |
 | Attachments | Images, PDFs, text and code files; visible-area screenshots; the PDF open in the current tab. | `attachments.ts` |
 | Rendering | Markdown, KaTeX (copyable LaTeX, see §6), code highlighting, source cards, Gemini search suggestions. | `render.ts` `math.ts` |
 | History | Conversations and page snapshots in IndexedDB. History drawer, rename, Markdown export. Long conversations render in a window, with a question navigator. | `storage.ts` `history.ts` `thread.ts` |
-| Settings | Saved automatically. Models, search, prompts, selection actions, appearance (including interface language), sites, data. Import and export omit keys by default. | `settings.ts` |
+| Settings | Saved automatically. Models, search, prompts, selection actions (including the toolbar switch and excluded sites), appearance (including interface language), site access, data. Import and export omit keys by default. | `settings.ts` |
 | Interface language | English and Simplified Chinese, see §8. | `i18n/` |
 
 ## 3. Runtime contexts
@@ -177,7 +177,7 @@ Code style, tests, secret handling, the changelog and releasing are described in
 
 | Source | Used for |
 | --- | --- |
-| [Lumio](https://github.com/Iceeeeeeey/lumio) | Starting point; the icons in `public/icons/` and early layout ideas, MIT (copyright notice kept in `LICENSE`) |
+| [Lumio](https://github.com/Iceeeeeeey/lumio) | Starting point and early layout ideas, MIT (copyright notice kept in `LICENSE`) |
 | [Page Assist](https://github.com/n4ze3m/page-assist/tree/c54bc6f41644e83b8130532814f7b62e01a47300) | The Defuddle → Markdown pipeline in `extract.ts`, MIT; the `@` tab mention interaction only |
 | Cerebr | Interaction ideas only; no GPL-3.0 code was copied |
 

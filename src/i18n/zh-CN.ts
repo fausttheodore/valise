@@ -216,6 +216,7 @@ export const zhCN = {
 
   // background.ts, browser.ts, attachments.ts, math.ts, ui.ts
   "bg.openPanel": "在侧栏中打开 Valise",
+  "bg.hideOnSite": "在此网站隐藏划词工具栏",
   "bg.noTab": "没有可读取的标签页。",
   "bg.discarded": "这个标签页已被浏览器休眠，先切换过去让它加载，再引用。",
   "bg.restricted": "这是浏览器内部页面或受保护的页面，无法读取正文。可以改为普通聊天。",
@@ -471,11 +472,11 @@ export const zhCN = {
   "settings.prompts": "提示词",
   "settings.prompts.desc": "全局提示词对所有会话生效，单个会话可在侧栏「⋯ → 会话提示词」中覆盖。",
   "settings.actions": "划词动作",
-  "settings.actions.desc": "选中网页文字后出现的快捷按钮，以及它们使用的提示词模板。",
+  "settings.actions.desc": "选中网页文字后出现的工具栏：在哪些网站显示、有哪些按钮，以及按钮使用的提示词模板。",
   "settings.appearance": "外观",
   "settings.appearance.desc": "界面语言、主题、强调色与阅读字体。",
   "settings.sites": "网站",
-  "settings.sites.desc": "划词工具栏的开关、排除名单与网页访问权限。",
+  "settings.sites.desc": "Valise 读取网页所需的访问权限。",
   "settings.data": "数据",
   "settings.data.desc": "备份、导入与本地存储。",
   "settings.about": "关于",
@@ -672,7 +673,8 @@ export const zhCN = {
   "settings.selectionToggleHint":
     "只有点击工具栏按钮才会调用模型，选择文字本身不会产生费用。更改对新打开的页面生效。",
   "settings.blocked": "排除的网站",
-  "settings.blockedDesc": "这些网站（含子域名）不显示划词工具栏；侧栏依旧可以读取它们。",
+  "settings.blockedDesc":
+    "这些网站（含子域名）不显示划词工具栏；侧栏依旧可以读取它们。要排除当前网站，也可以右键选中的文字 → Valise → 在此网站隐藏划词工具栏。",
   "settings.siteAccess": "网页访问权限",
   "settings.siteAccessDesc":
     "Valise 需要网站访问权限，才能在你提问时读取正文、截图以及显示划词工具栏；它不会在后台主动读取页面。",

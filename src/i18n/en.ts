@@ -231,6 +231,7 @@ export const en: Record<keyof typeof zhCN, string> = {
 
   // background.ts, browser.ts, attachments.ts, math.ts, ui.ts
   "bg.openPanel": "Open Valise in the side panel",
+  "bg.hideOnSite": "Hide the toolbar on this site",
   "bg.noTab": "No tab to read.",
   "bg.discarded": "The browser suspended this tab. Switch to it so it loads, then add it again.",
   "bg.restricted":
@@ -496,11 +497,11 @@ export const en: Record<keyof typeof zhCN, string> = {
     "The global prompt applies to all conversations. To override it for one conversation, use ⋯ → Conversation prompt in the side panel.",
   "settings.actions": "Selection actions",
   "settings.actions.desc":
-    "Buttons that appear when you select text on a page, and the prompt templates they use.",
+    "The toolbar that appears when you select text on a page: where it shows, its buttons and their prompt templates.",
   "settings.appearance": "Appearance",
   "settings.appearance.desc": "Interface language, theme, accent color and reading font.",
   "settings.sites": "Sites",
-  "settings.sites.desc": "The selection toolbar, excluded sites and site access.",
+  "settings.sites.desc": "The site access Valise needs to read pages.",
   "settings.data": "Data",
   "settings.data.desc": "Backup, import and local storage.",
   "settings.about": "About",
@@ -713,7 +714,7 @@ export const en: Record<keyof typeof zhCN, string> = {
     "The model is called only when you click a toolbar button; selecting text costs nothing. Changes apply to newly opened pages.",
   "settings.blocked": "Excluded sites",
   "settings.blockedDesc":
-    "The toolbar doesn't show on these sites or their subdomains. The side panel can still read them.",
+    "The toolbar doesn't show on these sites or their subdomains; the side panel can still read them. To add the site you are on, right-click selected text → Valise → Hide the toolbar on this site.",
   "settings.siteAccess": "Site access",
   "settings.siteAccessDesc":
     "Valise needs site access to read page text when you ask, take screenshots and show the selection toolbar. It never reads pages in the background.",

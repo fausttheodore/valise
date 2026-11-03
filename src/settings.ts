@@ -1434,6 +1434,7 @@ function actionsSection(): Child[] {
     );
   };
   return [
+    ...toolbarCards(),
     card(t("settings.toolbarPreview"), t("settings.toolbarPreviewDesc"), stage),
     card(
       t("settings.variables"),
@@ -1691,7 +1692,8 @@ async function checkPermission(box: HTMLElement) {
         ),
   ]);
 }
-function sitesSection(): Child[] {
+/** The toolbar switch and the sites where the toolbar stays hidden. */
+function toolbarCards(): Child[] {
   const chips = h("div", { class: "chip-list" });
   const drawChips = () =>
     chips.replaceChildren(
@@ -1732,8 +1734,6 @@ function sitesSection(): Child[] {
     drawChips();
     changed();
   });
-  const permission = h("div", { class: "perm-state" }, spinner(), t("settings.checking"));
-  void checkPermission(permission);
   return [
     card(
       "",
@@ -1746,8 +1746,12 @@ function sitesSection(): Child[] {
       ),
     ),
     card(t("settings.blocked"), t("settings.blockedDesc"), h("div", { class: "stack" }, chips, add)),
-    card(t("settings.siteAccess"), t("settings.siteAccessDesc"), permission),
   ];
+}
+function sitesSection(): Child[] {
+  const permission = h("div", { class: "perm-state" }, spinner(), t("settings.checking"));
+  void checkPermission(permission);
+  return [card(t("settings.siteAccess"), t("settings.siteAccessDesc"), permission)];
 }
 
 // ------------------------------------------------------------ data
@@ -1956,11 +1960,19 @@ try {
 applyAppearance(settings);
 render();
 windowId = (await chrome.windows.getCurrent()).id;
-// Dragging the float's edge saves a new width from the background; adopt it so the next save keeps it.
+// The background also writes settings (the float's width, sites excluded from the context menu); adopt them so the next save keeps them.
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local" || !changes.settings) return;
-  const width = normalizeSettings(changes.settings.newValue).floatWidth;
-  if (width === settings.floatWidth) return;
-  settings.floatWidth = width;
-  if (current === "appearance") render();
+  const { floatWidth, blockedSites } = normalizeSettings(changes.settings.newValue);
+  if (floatWidth !== settings.floatWidth) {
+    settings.floatWidth = floatWidth;
+    if (current === "appearance") render();
+  }
+  // The page's context menu only adds sites; taking just the additions keeps unsaved removals here.
+  const before = normalizeSettings(changes.settings.oldValue).blockedSites;
+  const added = blockedSites.filter((x) => !before.includes(x) && !settings.blockedSites.includes(x));
+  if (added.length) {
+    settings.blockedSites.push(...added);
+    if (current === "actions") render();
+  }
 });

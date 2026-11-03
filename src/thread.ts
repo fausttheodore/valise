@@ -64,6 +64,7 @@ export function createThread(opts: {
   // latest stays reachable by scrolling.
   let start = 0,
     follow = true,
+    lastTop = 0,
     jumping = false,
     railKey = "",
     railFrame = 0;
@@ -122,10 +123,14 @@ export function createThread(opts: {
     }
     updateRail();
     jump.hidden = follow;
-    if (follow)
-      requestAnimationFrame(() => {
-        scroller.scrollTop = scroller.scrollHeight;
-      });
+    if (follow) requestAnimationFrame(stick);
+  }
+  // Checked when it runs: the reader may have scrolled away since it was scheduled.
+  function stick() {
+    if (!follow) return;
+    scroller.scrollTop = scroller.scrollHeight;
+    // The scroll event this causes then shows no movement, so it can't be mistaken for the reader's.
+    lastTop = scroller.scrollTop;
   }
   function toBottom(smooth = false) {
     if (!conversation) return;
@@ -207,8 +212,13 @@ export function createThread(opts: {
     "scroll",
     () => {
       if (!conversation) return;
-      follow =
-        scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 48;
+      // Any move up stops following, however small; moving back down near the bottom resumes it.
+      // Content shrinking also lowers scrollTop, but leaves it at the bottom.
+      const top = scroller.scrollTop;
+      const gap = scroller.scrollHeight - top - scroller.clientHeight;
+      if (top < lastTop && gap > 1) follow = false;
+      else if (top > lastTop && gap < 48) follow = true;
+      lastTop = top;
       jump.hidden = follow;
       if (!jumping && start && scroller.scrollTop < 240) loadOlder();
       if (!railFrame) railFrame = requestAnimationFrame(markActive);
@@ -216,6 +226,22 @@ export function createThread(opts: {
     { passive: true },
   );
   scroller.addEventListener("scrollend", () => (jumping = false));
+  // A snap can land between the reader's wheel and the scroll it causes and hide the move;
+  // the wheel itself still tells which way the reader went.
+  scroller.addEventListener(
+    "wheel",
+    (event) => {
+      const gap = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+      if (event.deltaY < 0 && scroller.scrollTop > 0) follow = false;
+      else if (event.deltaY > 0 && gap < 48) follow = true;
+    },
+    { passive: true },
+  );
+  // Answers keep growing after render() returns (throttled drawing, highlighting, images),
+  // and the composer can shrink the view; stay at the bottom through both.
+  const resize = new ResizeObserver(stick);
+  resize.observe(inner);
+  resize.observe(scroller);
   return {
     element,
     inner,
